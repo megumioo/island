@@ -1195,81 +1195,7 @@
 <script src="./app.js"></script>
 <!-- ==================== 新增结束 ==================== -->
 
-// 基础功能修复
-function toggleBlock(blockName) {
-    console.log('切换区块: ' + blockName);
-    const content = document.getElementById(blockName + '-content');
-    if (content) {
-        content.classList.toggle('expanded');
-    }
-}
 
-function openGitHubSyncPanel() {
-    console.log('打开GitHub同步面板');
-    alert('GitHub同步功能暂不可用，请先修复app.js');
-}
-
-function saveSleep() {
-    console.log('保存睡眠记录');
-    alert('保存成功（测试）');
-}
-
-function saveBreakfast() {
-    console.log('保存早餐记录');
-    alert('保存成功（测试）');
-}
-
-// 更多基础函数...
-function initBasicFunctions() {
-    console.log('初始化基础功能');
-    
-    // 更新时间
-    const timeElement = document.getElementById('currentDateTime');
-    if (timeElement) {
-        timeElement.textContent = new Date().toLocaleString('zh-CN');
-    }
-    
-    // 添加导航按钮点击
-    const navButton = document.getElementById('navToggle');
-    if (navButton) {
-        navButton.addEventListener('click', function() {
-            console.log('菜单按钮点击');
-            document.getElementById('navSidebar').classList.add('active');
-        });
-    }
-}
-
-// 页面加载后初始化
-document.addEventListener('DOMContentLoaded', initBasicFunctions);
-</script>
-<script>
-// 确保所有函数都可用
-console.log('页面初始化完成');
-
-// 检查关键函数是否存在
-if (typeof toggleBlock === 'undefined') {
-    console.log('重新定义 toggleBlock');
-    window.toggleBlock = function(blockName) {
-        console.log('切换: ' + blockName);
-        const content = document.getElementById(blockName + '-content');
-        if (content) {
-            content.classList.toggle('expanded');
-        }
-    };
-}
-
-// 手动更新时间
-function updateTime() {
-    const timeElement = document.getElementById('currentDateTime');
-    if (timeElement) {
-        timeElement.textContent = new Date().toLocaleString('zh-CN');
-    }
-}
-
-// 每秒更新时间
-setInterval(updateTime, 1000);
-updateTime();
-</script>
 <script>
 // 修复页面功能
 console.log('修复页面功能...');
@@ -1332,6 +1258,7 @@ console.log('页面功能修复完成');
 </body> 
 
 </html>
+
 
 
 
