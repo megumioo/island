@@ -2101,3 +2101,209 @@ function updateEntertainmentReview() {
         entertainmentList.appendChild(li); 
     } 
 }
+// ==================== 打卡点功能 ====================
+let checkinStatus = {
+    iron: false,
+    vitamin: false,
+    magnesium: false,
+    bodycare: false
+};
+
+// 初始化打卡状态
+function initCheckins() {
+    const dateStr = formatDate(new Date());
+    
+    // 加载补剂打卡状态
+    const supplementData = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUPPLEMENTS + '_TEMP') || '{}');
+    if (supplementData[dateStr] && supplementData[dateStr].length > 0) {
+        const latest = supplementData[dateStr][supplementData[dateStr].length - 1];
+        checkinStatus.iron = latest.iron || false;
+    }
+    
+    // 加载维生素打卡状态
+    const vitaminData = JSON.parse(localStorage.getItem(STORAGE_KEYS.VITAMIN + '_TEMP') || '{}');
+    if (vitaminData[dateStr] && vitaminData[dateStr].length > 0) {
+        const latest = vitaminData[dateStr][vitaminData[dateStr].length - 1];
+        checkinStatus.vitamin = latest.vitaminDK || false;
+    }
+    
+    // 加载补镁打卡状态
+    const magnesiumData = JSON.parse(localStorage.getItem(STORAGE_KEYS.MAGNESIUM + '_TEMP') || '{}');
+    if (magnesiumData[dateStr] && magnesiumData[dateStr].length > 0) {
+        const latest = magnesiumData[dateStr][magnesiumData[dateStr].length - 1];
+        checkinStatus.magnesium = latest.magnesium || false;
+    }
+    
+    // 加载身体护理打卡状态
+    const bodycareData = JSON.parse(localStorage.getItem(STORAGE_KEYS.BODYCARE + '_TEMP') || '{}');
+    if (bodycareData[dateStr] && bodycareData[dateStr].length > 0) {
+        const latest = bodycareData[dateStr][bodycareData[dateStr].length - 1];
+        checkinStatus.bodycare = (latest.scrub && latest.hairRemoval && latest.lotion) || false;
+    }
+    
+    updateCheckinUI();
+}
+
+// 更新打卡点UI
+function updateCheckinUI() {
+    const checkins = ['iron', 'vitamin', 'magnesium', 'bodycare'];
+    
+    checkins.forEach(type => {
+        const card = document.querySelector(`.checkin-card[onclick*="${type}"]`);
+        const statusEl = document.getElementById(`${type}Status`);
+        
+        if (card && statusEl) {
+            if (checkinStatus[type]) {
+                card.classList.add('completed');
+                statusEl.textContent = '已完成';
+            } else {
+                card.classList.remove('completed');
+                statusEl.textContent = '未完成';
+            }
+        }
+    });
+}
+
+// 切换打卡状态
+function toggleCheckin(type) {
+    checkinStatus[type] = !checkinStatus[type];
+    updateCheckinUI();
+    showNotification(`${getCheckinName(type)} ${checkinStatus[type] ? '✓' : '✗'}`);
+}
+
+// 获取打卡点名称
+function getCheckinName(type) {
+    const names = {
+        iron: '补铁片',
+        vitamin: '维生素',
+        magnesium: '补镁片',
+        bodycare: '身体护理'
+    };
+    return names[type] || type;
+}
+
+// 保存所有打卡点
+function saveAllCheckins() {
+    // 保存补铁片
+    if (checkinStatus.iron) {
+        const data = { iron: true, date: formatDate(new Date()) };
+        saveTempData(STORAGE_KEYS.SUPPLEMENTS, data);
+    }
+    
+    // 保存维生素
+    if (checkinStatus.vitamin) {
+        const data = { vitaminDK: true, date: formatDate(new Date()) };
+        saveTempData(STORAGE_KEYS.VITAMIN, data);
+    }
+    
+    // 保存补镁片
+    if (checkinStatus.magnesium) {
+        const data = { magnesium: true, date: formatDate(new Date()) };
+        saveTempData(STORAGE_KEYS.MAGNESIUM, data);
+    }
+    
+    // 保存身体护理
+    if (checkinStatus.bodycare) {
+        const data = { 
+            scrub: true, 
+            hairRemoval: true, 
+            lotion: true, 
+            date: formatDate(new Date()) 
+        };
+        saveTempData(STORAGE_KEYS.BODYCARE, data);
+    }
+    
+    showNotification('打卡点已保存！');
+}
+
+// ==================== 学习/运动自动打卡 ====================
+// 修改原有的保存函数，添加自动打卡逻辑
+const originalSaveStudy = window.saveStudy;
+window.saveStudy = function() {
+    const studySubject = document.getElementById('studySubject').value;
+    const studyDuration = document.getElementById('studyDuration').value;
+    const studyContent = document.getElementById('studyContent').value;
+    const studySummary = document.getElementById('studySummary').value;
+    
+    if (!studyDuration || !studyContent) {
+        showNotification('请填写学习时长和内容');
+        return;
+    }
+    
+    const data = {
+        subject: studySubject,
+        duration: parseInt(studyDuration),
+        content: studyContent,
+        summary: studySummary
+    };
+    
+    if (saveTempData(STORAGE_KEYS.STUDY, data)) {
+        showNotification('学习记录已保存！✓ 学习打卡完成');
+        
+        // 自动完成学习打卡（如果有学习打卡点的话）
+        console.log('学习任务完成，可在此添加自动打卡逻辑');
+    }
+};
+
+const originalSaveExercise = window.saveExercise;
+window.saveExercise = function() {
+    const exerciseType = document.getElementById('exerciseType').value;
+    const exerciseDuration = document.getElementById('exerciseDuration').value;
+    const exerciseItem = document.getElementById('exerciseItem').value;
+    const exerciseCalories = document.getElementById('exerciseCalories').value;
+    const exerciseFeeling = document.getElementById('exerciseFeeling').value;
+    
+    if (!exerciseDuration || !exerciseItem) {
+        showNotification('请填写运动时长和项目');
+        return;
+    }
+    
+    const data = {
+        type: exerciseType,
+        duration: parseInt(exerciseDuration),
+        item: exerciseItem,
+        calories: exerciseCalories ? parseInt(exerciseCalories) : 0,
+        feeling: exerciseFeeling
+    };
+    
+    if (saveTempData(STORAGE_KEYS.EXERCISE, data)) {
+        showNotification('运动记录已保存！✓ 运动打卡完成');
+        
+        // 自动完成运动打卡（如果有运动打卡点的话）
+        console.log('运动任务完成，可在此添加自动打卡逻辑');
+    }
+};
+
+// ==================== 初始化新板块 ====================
+document.addEventListener('DOMContentLoaded', function() {
+    // 在原有的初始化代码中添加
+    initCheckins();
+    
+    // 修改导航切换逻辑
+    const navTabs = document.querySelectorAll('.nav-tab');
+    navTabs.forEach(tab => {
+        tab.addEventListener('click', function() {
+            const section = this.dataset.section;
+            
+            // 隐藏所有板块
+            document.querySelectorAll('.section').forEach(sec => {
+                sec.classList.remove('active');
+            });
+            
+            // 显示对应板块
+            if (section === 'timeline') {
+                document.getElementById('timelineSection').classList.add('active');
+            } else if (section === 'checkin') {
+                document.getElementById('checkinSection').classList.add('active');
+            } else if (section === 'study-exercise') {
+                document.getElementById('studyExerciseSection').classList.add('active');
+            } else if (section === 'calendar') {
+                document.getElementById('calendarSection').classList.add('active');
+            }
+            
+            // 更新标签状态
+            navTabs.forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+        });
+    });
+});
