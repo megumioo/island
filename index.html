@@ -1242,11 +1242,39 @@ function initBasicFunctions() {
 // 页面加载后初始化
 document.addEventListener('DOMContentLoaded', initBasicFunctions);
 </script>
-    
+<script>
+// 确保所有函数都可用
+console.log('页面初始化完成');
+
+// 检查关键函数是否存在
+if (typeof toggleBlock === 'undefined') {
+    console.log('重新定义 toggleBlock');
+    window.toggleBlock = function(blockName) {
+        console.log('切换: ' + blockName);
+        const content = document.getElementById(blockName + '-content');
+        if (content) {
+            content.classList.toggle('expanded');
+        }
+    };
+}
+
+// 手动更新时间
+function updateTime() {
+    const timeElement = document.getElementById('currentDateTime');
+    if (timeElement) {
+        timeElement.textContent = new Date().toLocaleString('zh-CN');
+    }
+}
+
+// 每秒更新时间
+setInterval(updateTime, 1000);
+updateTime();
+</script>
 </script>
 </body> 
 
 </html>
+
 
 
 
