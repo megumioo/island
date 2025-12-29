@@ -26,6 +26,45 @@
 <!-- ==================== 新增结束 ==================== -->
 
 </head> 
+<script>
+// 修复区块点击问题
+document.addEventListener('DOMContentLoaded', function() {
+    // 修复所有区块头部的点击
+    document.querySelectorAll('.block-header').forEach(header => {
+        header.style.cursor = 'pointer';
+        
+        header.addEventListener('click', function(event) {
+            // 找到对应的区块
+            const block = this.closest('.collapsible-block');
+            const blockId = block.id;
+            const blockName = blockId.replace('-block', '');
+            
+            // 调用toggleBlock函数
+            if (window.toggleBlock && typeof window.toggleBlock === 'function') {
+                window.toggleBlock(blockName);
+            } else {
+                // 手动切换
+                const content = document.getElementById(blockName + '-content');
+                if (content) {
+                    const isExpanded = content.classList.toggle('expanded');
+                    
+                    // 切换箭头
+                    const icon = this.querySelector('.block-toggle i');
+                    if (icon) {
+                        if (isExpanded) {
+                            icon.className = 'fas fa-chevron-up';
+                        } else {
+                            icon.className = 'fas fa-chevron-down';
+                        }
+                    }
+                }
+            }
+        });
+    });
+    
+    console.log('区块点击修复完成');
+});
+</script>
 <body> 
 <div class="nav-sidebar" id="navSidebar"> 
 <div class="nav-sidebar-header"> 
@@ -1197,6 +1236,7 @@
 
 </body>
 </html>
+
 
 
 
