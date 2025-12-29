@@ -17,8 +17,11 @@
 <meta name="msapplication-config" content="browserconfig.xml"> 
 <title>小航小刀小岛</title> 
 
-<!-- 外部资源 -->
+<!-- ==================== 新增：Font Awesome CDN ==================== -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<!-- ==================== 新增结束 ==================== -->
+
+<!-- ==================== 引入外部CSS文件 ==================== -->
 <link rel="stylesheet" href="style.css">
 <!-- ==================== 新增结束 ==================== -->
 
@@ -1186,22 +1189,11 @@
 
 <footer> 
 <p>刀刀航航岛岛</p> 
-</footer>
+</footer> 
 
-<!-- JavaScript 文件 -->
+<!-- ==================== 引入外部JavaScript文件 ==================== -->
 <script src="app.js"></script>
-<script src="github-sync.js"></script>
-
-<!-- Service Worker 注册 -->
-<script>
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('service-worker.js')
-            .then(() => console.log('✅ Service Worker 已注册'))
-            .catch(err => console.log('Service Worker 注册失败:', err));
-    }
-</script>
-
-</script> 
+<!-- ==================== 新增结束 ==================== -->
 
 </body> 
 </html>

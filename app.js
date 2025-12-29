@@ -1,5 +1,503 @@
-console.log('📁 app.js 加载成功');
-console.log('📅 当前日期:', new Date().toLocaleString('zh-CN'));
+// ==================== 新增：GitHub 同步管理器 ====================
+const githubSyncManager = {
+    accessToken: null,
+    gistId: null,
+    username: null,
+    userInfo: {},
+    lastSync: null,
+    isAutoSync: false,
+
+    init() {
+        this.loadConfig();
+        this.updateUI();
+    },
+
+    loadConfig() {
+        this.accessToken = localStorage.getItem('github_pat');
+        this.gistId = localStorage.getItem('github_gist_id');
+        this.username = localStorage.getItem('github_username');
+        this.lastSync = localStorage.getItem('github_last_sync');
+        const userInfo = localStorage.getItem('github_user_info');
+        if (userInfo) this.userInfo = JSON.parse(userInfo);
+    },
+
+    saveConfig() {
+        if (this.accessToken) localStorage.setItem('github_pat', this.accessToken);
+        if (this.gistId) localStorage.setItem('github_gist_id', this.gistId);
+        if (this.username) localStorage.setItem('github_username', this.username);
+        if (this.lastSync) localStorage.setItem('github_last_sync', this.lastSync);
+        if (this.userInfo) localStorage.setItem('github_user_info', JSON.stringify(this.userInfo));
+    },
+
+    clearConfig() {
+        localStorage.removeItem('github_pat');
+        localStorage.removeItem('github_gist_id');
+        localStorage.removeItem('github_username');
+        localStorage.removeItem('github_last_sync');
+        localStorage.removeItem('github_user_info');
+        this.accessToken = null;
+        this.gistId = null;
+        this.username = null;
+        this.userInfo = {};
+        this.lastSync = null;
+    },
+
+    isConnected() {
+        return !!this.accessToken;
+    },
+
+    updateUI() {
+        const notConnectedView = document.getElementById('syncNotConnected');
+        const connectedView = document.getElementById('syncConnected');
+        const manualConfigView = document.getElementById('syncManualConfig');
+
+        if (this.isConnected()) {
+            notConnectedView.style.display = 'none';
+            connectedView.style.display = 'block';
+            manualConfigView.style.display = 'none';
+
+            // 更新用户信息
+            document.getElementById('githubUsername').textContent = 
+                this.userInfo.name || this.username || 'GitHub User';
+            
+            if (this.userInfo.avatar_url) {
+                document.getElementById('githubAvatar').src = this.userInfo.avatar_url;
+            }
+
+            // 更新同步信息
+            if (this.lastSync) {
+                const lastSyncDate = new Date(this.lastSync);
+                document.getElementById('lastSyncTime').textContent = 
+                    lastSyncDate.toLocaleString('zh-CN');
+            } else {
+                document.getElementById('lastSyncTime').textContent = '从未同步';
+            }
+
+            // 计算记录数量
+            const recordCount = this.calculateRecordCount();
+            document.getElementById('syncRecordCount').textContent = `${recordCount}条`;
+        } else {
+            notConnectedView.style.display = 'block';
+            connectedView.style.display = 'none';
+            manualConfigView.style.display = 'none';
+        }
+    },
+
+    calculateRecordCount() {
+        let count = 0;
+        const storageKeys = [
+            'sleepData', 'breakfastData', 'workData', 'houseworkData',
+            'lunchData', 'napData', 'dinnerData', 'studyData',
+            'exerciseData', 'gameData', 'entertainmentData', 'financeData'
+        ];
+
+        storageKeys.forEach(key => {
+            const data = localStorage.getItem(key);
+            if (data) {
+                try {
+                    const parsed = JSON.parse(data);
+                    Object.values(parsed).forEach(records => {
+                        count += Array.isArray(records) ? records.length : 0;
+                    });
+                } catch (e) {
+                    console.error(`Error parsing ${key}:`, e);
+                }
+            }
+        });
+
+        return count;
+    },
+
+    async testConnection() {
+        if (!this.accessToken) {
+            throw new Error('未配置 PAT');
+        }
+
+        try {
+            const response = await fetch('https://api.github.com/user', {
+                headers: {
+                    'Authorization': `token ${this.accessToken}`,
+                    'Accept': 'application/vnd.github.v3+json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`GitHub API 错误: ${response.status}`);
+            }
+
+            const userData = await response.json();
+            this.username = userData.login;
+            this.userInfo = {
+                name: userData.name || userData.login,
+                avatar_url: userData.avatar_url,
+                id: userData.id
+            };
+
+            return userData;
+        } catch (error) {
+            console.error('连接测试失败:', error);
+            throw error;
+        }
+    },
+
+    async findOrCreateGist(description = 'island sync data') {
+        if (!this.accessToken) {
+            throw new Error('未配置 PAT');
+        }
+
+        try {
+            // 首先查找现有的 Gist
+            const response = await fetch('https://api.github.com/gists', {
+                headers: {
+                    'Authorization': `token ${this.accessToken}`,
+                    'Accept': 'application/vnd.github.v3+json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`获取 Gist 列表失败: ${response.status}`);
+            }
+
+            const gists = await response.json();
+            const islandGist = gists.find(gist => 
+                gist.description && gist.description.includes(description)
+            );
+
+            if (islandGist) {
+                this.gistId = islandGist.id;
+                return islandGist;
+            } else {
+                // 创建新的 Gist
+                const createResponse = await fetch('https://api.github.com/gists', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `token ${this.accessToken}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        description: description,
+                        public: false,
+                        files: {
+                            'island-data.json': {
+                                content: JSON.stringify({ created: new Date().toISOString() })
+                            }
+                        }
+                    })
+                });
+
+                if (!createResponse.ok) {
+                    throw new Error(`创建 Gist 失败: ${createResponse.status}`);
+                }
+
+                const newGist = await createResponse.json();
+                this.gistId = newGist.id;
+                return newGist;
+            }
+        } catch (error) {
+            console.error('Gist 操作失败:', error);
+            throw error;
+        }
+    }
+};
+
+// ==================== 新增：GitHub 同步 UI 控制函数 ====================
+function openGitHubSyncPanel() {
+    const panel = document.getElementById('githubSyncPanel');
+    const overlay = document.getElementById('syncOverlay');
+    panel.style.display = 'block';
+    overlay.style.display = 'block';
+    githubSyncManager.updateUI();
+}
+
+function closeGitHubSyncPanel() {
+    const panel = document.getElementById('githubSyncPanel');
+    const overlay = document.getElementById('syncOverlay');
+    panel.style.display = 'none';
+    overlay.style.display = 'none';
+    hideSyncStatus();
+}
+
+function openPATModal() {
+    document.getElementById('patConfigForm').style.display = 'block';
+}
+
+function closePATModal() {
+    document.getElementById('patConfigForm').style.display = 'none';
+}
+
+async function connectWithPAT() {
+    const pat = document.getElementById('githubPAT').value.trim();
+    const description = document.getElementById('gistDescription').value.trim() || 'island sync data';
+
+    if (!pat) {
+        alert('请输入 GitHub Personal Access Token');
+        return;
+    }
+
+    if (!pat.startsWith('ghp_') && !pat.startsWith('github_pat_')) {
+        if (!confirm('这个看起来不像有效的 PAT。请确认您输入的是正确的 Personal Access Token。\n\n是否继续？')) {
+            return;
+        }
+    }
+
+    showSyncStatus('正在验证 PAT...');
+
+    try {
+        githubSyncManager.accessToken = pat;
+        
+        // 测试连接
+        const userData = await githubSyncManager.testConnection();
+        
+        showSyncStatus('正在设置 Gist...');
+        updateProgress(30);
+        
+        // 查找或创建 Gist
+        await githubSyncManager.findOrCreateGist(description);
+        
+        updateProgress(80);
+        showSyncStatus('正在保存配置...');
+        
+        githubSyncManager.saveConfig();
+        
+        updateProgress(100);
+        showSyncStatus('连接成功！', 'success');
+        
+        setTimeout(() => {
+            hideSyncStatus();
+            githubSyncManager.updateUI();
+            closePATModal();
+            document.getElementById('githubPAT').value = '';
+            document.getElementById('gistDescription').value = '';
+        }, 1500);
+        
+    } catch (error) {
+        showSyncStatus(`连接失败: ${error.message}`, 'error');
+        githubSyncManager.clearConfig();
+    }
+}
+
+function manualSyncConfig() {
+    document.getElementById('syncConnected').style.display = 'none';
+    document.getElementById('syncManualConfig').style.display = 'block';
+    
+    // 填充现有配置
+    document.getElementById('manualUsername').value = githubSyncManager.username || '';
+    document.getElementById('manualGistId').value = githubSyncManager.gistId || '';
+}
+
+function showConnectedView() {
+    document.getElementById('syncManualConfig').style.display = 'none';
+    document.getElementById('syncConnected').style.display = 'block';
+}
+
+async function saveManualConfig() {
+    const username = document.getElementById('manualUsername').value.trim();
+    const gistId = document.getElementById('manualGistId').value.trim();
+
+    if (!username) {
+        alert('请输入 GitHub 用户名');
+        return;
+    }
+
+    githubSyncManager.username = username;
+    if (gistId) githubSyncManager.gistId = gistId;
+    
+    githubSyncManager.saveConfig();
+    githubSyncManager.updateUI();
+    showNotification('手动配置已保存');
+}
+
+async function syncToGitHub(action) {
+    if (!githubSyncManager.isConnected()) {
+        alert('请先连接 GitHub 账号');
+        return;
+    }
+
+    showSyncStatus(action === 'upload' ? '正在准备上传数据...' : '正在下载数据...');
+    
+    try {
+        if (action === 'upload') {
+            await uploadData();
+        } else {
+            await downloadData();
+        }
+    } catch (error) {
+        showSyncStatus(`${action === 'upload' ? '上传' : '下载'}失败: ${error.message}`, 'error');
+    }
+}
+
+async function uploadData() {
+    updateProgress(20);
+    showSyncStatus('正在收集数据...');
+    
+    // 收集所有数据
+    const allData = {};
+    const storageKeys = Object.keys(localStorage);
+    
+    storageKeys.forEach(key => {
+        if (!key.includes('github_') && !key.includes('_temp')) {
+            try {
+                const value = localStorage.getItem(key);
+                if (value) {
+                    allData[key] = JSON.parse(value);
+                }
+            } catch (e) {
+                console.warn(`无法解析 ${key}:`, e);
+            }
+        }
+    });
+
+    updateProgress(40);
+    showSyncStatus('正在加密数据...');
+    
+    // 简单加密
+    const encryptedData = btoa(JSON.stringify(allData));
+    
+    updateProgress(60);
+    showSyncStatus('正在上传到 GitHub...');
+    
+    // 更新 Gist
+    const response = await fetch(`https://api.github.com/gists/${githubSyncManager.gistId}`, {
+        method: 'PATCH',
+        headers: {
+            'Authorization': `token ${githubSyncManager.accessToken}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            description: `island sync data - ${new Date().toLocaleString('zh-CN')}`,
+            files: {
+                'island-data.json': {
+                    content: encryptedData
+                }
+            }
+        })
+    });
+
+    if (!response.ok) {
+        throw new Error(`上传失败: ${response.status}`);
+    }
+
+    updateProgress(100);
+    githubSyncManager.lastSync = new Date().toISOString();
+    githubSyncManager.saveConfig();
+    
+    showSyncStatus('上传成功！', 'success');
+    showNotification('✅ 数据已备份到 GitHub！');
+    
+    setTimeout(() => {
+        hideSyncStatus();
+        githubSyncManager.updateUI();
+    }, 1500);
+}
+
+async function downloadData() {
+    if (!confirm('从 GitHub 下载数据将覆盖本地数据，是否继续？')) {
+        return;
+    }
+
+    updateProgress(20);
+    showSyncStatus('正在从 GitHub 获取数据...');
+    
+    // 获取 Gist 数据
+    const response = await fetch(`https://api.github.com/gists/${githubSyncManager.gistId}`, {
+        headers: {
+            'Authorization': `token ${githubSyncManager.accessToken}`,
+            'Accept': 'application/vnd.github.v3+json'
+        }
+    });
+
+    if (!response.ok) {
+        throw new Error(`下载失败: ${response.status}`);
+    }
+
+    const gistData = await response.json();
+    const encryptedContent = gistData.files['island-data.json'].content;
+    
+    updateProgress(60);
+    showSyncStatus('正在解密数据...');
+    
+    // 解密数据
+    try {
+        const decryptedData = JSON.parse(atob(encryptedContent));
+        
+        updateProgress(80);
+        showSyncStatus('正在写入本地存储...');
+        
+        // 写入本地存储
+        Object.keys(decryptedData).forEach(key => {
+            localStorage.setItem(key, JSON.stringify(decryptedData[key]));
+        });
+        
+        updateProgress(100);
+        githubSyncManager.lastSync = new Date().toISOString();
+        githubSyncManager.saveConfig();
+        
+        showSyncStatus('下载成功！', 'success');
+        showNotification('✅ 已从 GitHub 恢复数据！');
+        
+        setTimeout(() => {
+            hideSyncStatus();
+            githubSyncManager.updateUI();
+            // 刷新页面数据
+            if (typeof loadAllData === 'function') {
+                loadAllData();
+            }
+            location.reload();
+        }, 1500);
+        
+    } catch (error) {
+        throw new Error('数据解密失败');
+    }
+}
+
+function disconnectGitHub() {
+    if (confirm('确定要断开 GitHub 连接吗？\n这将清除所有同步配置。')) {
+        githubSyncManager.clearConfig();
+        githubSyncManager.updateUI();
+        showNotification('已断开 GitHub 连接');
+    }
+}
+
+function showSyncStatus(message, type = 'loading') {
+    const statusEl = document.getElementById('syncStatus');
+    const statusText = document.getElementById('statusText');
+    
+    statusEl.style.display = 'block';
+    statusText.textContent = message;
+    
+    const spinner = statusEl.querySelector('.spinner');
+    if (type === 'success') {
+        statusText.style.color = '#4CAF50';
+        if (spinner) spinner.style.display = 'none';
+    } else if (type === 'error') {
+        statusText.style.color = '#F44336';
+        if (spinner) spinner.style.display = 'none';
+    } else {
+        statusText.style.color = '#24292e';
+        if (spinner) spinner.style.display = 'block';
+    }
+}
+
+function hideSyncStatus() {
+    document.getElementById('syncStatus').style.display = 'none';
+    updateProgress(0);
+}
+
+function updateProgress(percent) {
+    const progressFill = document.querySelector('.progress-fill');
+    const progressText = document.getElementById('progressText');
+    
+    if (progressFill) {
+        progressFill.style.width = percent + '%';
+    }
+    if (progressText) {
+        progressText.textContent = percent + '%';
+    }
+}
+// ==================== 新增结束 ====================
+
 // 原有的应用数据模型
 const STORAGE_KEYS = { 
 SLEEP: 'sleepData', 
@@ -494,7 +992,7 @@ document.getElementById('expenseOverview').textContent = `${todayExpense.toFixed
 } 
 
 function archiveToday() { 
-if (!confirm('❤️ 确认要归档今日的记录吗？\n归档后今日数据将永久保存，不可修改哦！')) { 
+if (!confirm(❤️ 确认要归档今日的记录吗？\n归档后今日数据将永久保存，不可修改哦！')) { 
 return; 
 } 
 const dateStr = formatDate(new Date()); 
@@ -1579,67 +2077,46 @@ li.textContent = '暂无财务记录';
 categoryList.appendChild(li); 
 } 
 } 
-// 初始化应用
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('✅ island 应用启动中...');
-    
-    // 时间更新
-    updateDateTime();
-    setInterval(updateDateTime, 1000);
-    
-    // 初始化各种功能
-    initIslandResidentsTable();
-    initGameTypeToggle();
-    initCalendar();
-    loadTodayData();
-    initButtonEvents();
-    updateReviewData();
-    loadIslandInteractions();
-    loadImportantDates();
-    updateOverviewFromTemp();
-    
-    // 设置表单默认日期
-    const todayStr = formatDate(new Date());
-    if (document.getElementById('financeDate')) {
-        document.getElementById('financeDate').value = todayStr;
-    }
-    if (document.getElementById('importantDate')) {
-        document.getElementById('importantDate').value = todayStr;
-    }
-    
-    // 加载工作数据
-    loadWorkData();
-    
-    // 初始化UI组件
-    initNavigation();
-    initOverviewPanel();
-    initNavSidebar();
-    initCollapsibleBlocks();
-    initHouseworkScore();
-    
-    // GitHub 同步初始化（将在 github-sync.js 中处理）
-    
-    console.log('✅ island 应用启动完成！');
-    
-    // PWA 添加到主屏幕的处理
-    if (window.navigator.standalone) {
-        const currentUrl = window.location.href;
-        const correctUrl = window.location.origin + '/island/index.html';
-        if (currentUrl === window.location.origin + '/') {
-            window.location.replace(correctUrl);
-        }
-    }
-    
-    // Service Worker 注册
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('service-worker.js')
-                .then(registration => {
-                    console.log('✅ ServiceWorker 注册成功');
-                })
-                .catch(error => {
-                    console.log('ServiceWorker 注册失败: ', error);
-                });
-        });
-    }
-});
+
+function updateEntertainmentReview() { 
+const entertainmentData = JSON.parse(localStorage.getItem(STORAGE_KEYS.ENTERTAINMENT) || '{}'); 
+const gameData = JSON.parse(localStorage.getItem(STORAGE_KEYS.GAME) || '{}'); 
+
+let entertainmentStats = {}; 
+
+Object.keys(entertainmentData).forEach(date => { 
+entertainmentData[date].forEach(record => { 
+const type = record.type || '未分类'; 
+if (!entertainmentStats[type]) { 
+entertainmentStats[type] = 0; 
+} 
+entertainmentStats[type]++; 
+}); 
+}); 
+
+Object.keys(gameData).forEach(date => { 
+gameData[date].forEach(record => { 
+const type = '游戏-' + (record.type || '未分类'); 
+if (!entertainmentStats[type]) { 
+entertainmentStats[type] = 0; 
+} 
+entertainmentStats[type]++; 
+}); 
+}); 
+
+const entertainmentList = document.getElementById('entertainmentStats'); 
+entertainmentList.innerHTML = ''; 
+if (Object.keys(entertainmentStats).length > 0) { 
+Object.keys(entertainmentStats).forEach(type => { 
+const li = document.createElement('li'); 
+li.textContent = `${type}: ${entertainmentStats[type]}次`; 
+entertainmentList.appendChild(li); 
+}); 
+} else { 
+const li = document.createElement('li'); 
+li.textContent = '暂无娱乐记录'; 
+entertainmentList.appendChild(li); 
+} 
+} 
+
+// ==================== 新增结束 ====================
