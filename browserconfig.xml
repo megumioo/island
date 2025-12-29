@@ -2,10 +2,15 @@
 <browserconfig>
   <msapplication>
     <tile>
-      <square70x70logo src="icons/icon-72x72.png"/>
-      <square150x150logo src="icons/icon-144x144.png"/>
-      <square310x310logo src="icons/icon-310x310.png"/>
+      <square70x70logo src="./icons/icon-72x72.png"/>
+      <square150x150logo src="./icons/icon-144x144.png"/>
+      <square310x310logo src="./icons/icon-310x310.png"/>
       <TileColor>#4FC3F7</TileColor>
     </tile>
+    <notification>
+      <polling-uri src="./"/>
+      <polling-uri2 src="./"/>
+      <polling-uri3 src="./"/>
+    </notification>
   </msapplication>
 </browserconfig>

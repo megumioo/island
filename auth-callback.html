@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub 授权回调 - island</title>
+    <title>GitHub 配置 - island</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body {
             font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
@@ -19,10 +20,10 @@
         .container {
             background: white;
             border-radius: 15px;
-            padding: 40px;
+            padding: 30px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
             text-align: center;
-            max-width: 400px;
+            max-width: 500px;
             width: 100%;
         }
         
@@ -37,48 +38,16 @@
             margin-bottom: 10px;
         }
         
-        .status {
+        .status-box {
             margin: 20px 0;
-            padding: 15px;
-            border-radius: 8px;
+            padding: 20px;
+            border-radius: 10px;
             background-color: #FFF9F0;
         }
         
-        .success {
-            color: #4CAF50;
-        }
-        
-        .error {
-            color: #F44336;
-        }
-        
-        .loading {
-            color: #FF9800;
-        }
-        
-        .spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #4FC3F7;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 15px;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        .info {
-            background-color: #E1F5FE;
-            padding: 12px;
-            border-radius: 6px;
-            margin: 15px 0;
-            font-size: 14px;
-            color: #0277BD;
-        }
+        .success { border-left: 4px solid #4CAF50; }
+        .error { border-left: 4px solid #F44336; }
+        .info { border-left: 4px solid #2196F3; }
         
         .action-btn {
             background-color: #24292e;
@@ -88,12 +57,16 @@
             border-radius: 6px;
             font-size: 16px;
             cursor: pointer;
-            margin-top: 20px;
-            transition: background-color 0.3s;
+            margin: 10px;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
         }
         
         .action-btn:hover {
             background-color: #0366d6;
+            transform: translateY(-2px);
         }
         
         .back-btn {
@@ -102,18 +75,18 @@
             border: 1px solid #ddd;
             padding: 10px 20px;
             border-radius: 6px;
-            margin-top: 10px;
             cursor: pointer;
         }
         
-        .back-btn:hover {
-            background-color: #f5f5f5;
+        .steps {
+            text-align: left;
+            margin: 20px 0;
+            padding-left: 20px;
         }
         
         .step {
-            text-align: left;
-            margin: 15px 0;
-            padding-left: 20px;
+            margin: 10px 0;
+            padding-left: 25px;
             position: relative;
         }
         
@@ -131,6 +104,22 @@
             border-radius: 4px;
             font-family: monospace;
             font-size: 12px;
+            border: 1px solid #ddd;
+        }
+        
+        .pat-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e4e8;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: monospace;
+            margin: 15px 0;
+        }
+        
+        .pat-input:focus {
+            outline: none;
+            border-color: #0366d6;
         }
     </style>
 </head>
@@ -140,268 +129,170 @@
             <i class="fas fa-island-tropical"></i>
         </div>
         
-        <h1>GitHub 授权</h1>
+        <h1>GitHub 云同步配置</h1>
         
-        <div id="loading" class="status loading">
-            <div class="spinner"></div>
-            <p>正在处理授权...</p>
+        <div class="status-box info">
+            <h3><i class="fas fa-info-circle"></i> 手动配置 GitHub PAT</h3>
+            <p>island 使用 GitHub Personal Access Token (PAT) 安全地同步数据到您的私有 Gist。</p>
         </div>
         
-        <div id="success" class="status success" style="display:none;">
-            <i class="fas fa-check-circle" style="font-size: 48px; margin-bottom: 15px;"></i>
-            <h2>授权成功！</h2>
-            <p>GitHub 账号已成功连接。</p>
-            <div class="info">
-                <i class="fas fa-info-circle"></i>
-                正在返回 island 应用...
-            </div>
-            <button class="action-btn" onclick="returnToApp()">
-                <i class="fas fa-arrow-left"></i> 返回 island
-            </button>
+        <div class="steps">
+            <div class="step">访问 <a href="https://github.com/settings/tokens" target="_blank">GitHub → Settings → Developer settings → Personal access tokens</a></div>
+            <div class="step">点击 "Generate new token" → "Generate new token (classic)"</div>
+            <div class="step">填写 Token 描述（如："island sync"）</div>
+            <div class="step">勾选权限：<code>gist</code>（必需）</div>
+            <div class="step">点击 "Generate token" 并复制生成的 token</div>
         </div>
         
-        <div id="error" class="status error" style="display:none;">
-            <i class="fas fa-exclamation-triangle" style="font-size: 48px; margin-bottom: 15px;"></i>
-            <h2>授权失败</h2>
-            <p id="errorMessage">授权过程中出现错误。</p>
+        <div style="margin: 25px 0;">
+            <label for="patToken" style="display:block; text-align:left; margin-bottom:8px; font-weight:600;">
+                <i class="fas fa-key"></i> 粘贴您的 GitHub PAT：
+            </label>
+            <input type="password" id="patToken" class="pat-input" 
+                   placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" 
+                   spellcheck="false" autocomplete="off">
             
-            <div class="info">
-                <strong>手动配置步骤：</strong>
-                <div class="step">访问 GitHub → Settings</div>
-                <div class="step">Developer settings → Personal access tokens</div>
-                <div class="step">创建新 token，勾选 <code>gist</code> 权限</div>
-                <div class="step">复制 token 并返回 island 手动粘贴</div>
-            </div>
-            
-            <button class="action-btn" onclick="retryAuthorization()">
-                <i class="fas fa-redo"></i> 重试授权
+            <small style="display:block; text-align:left; color:#666; margin-top:5px;">
+                <i class="fas fa-shield-alt"></i> Token 仅存储在您的浏览器中，用于安全的云同步
+            </small>
+        </div>
+        
+        <div>
+            <button class="action-btn" onclick="connectWithPAT()">
+                <i class="fas fa-link"></i> 连接 GitHub
             </button>
             <button class="back-btn" onclick="returnToApp()">
-                返回应用
+                <i class="fas fa-times"></i> 取消
             </button>
         </div>
         
-        <div id="manualConfig" class="status" style="display:none;">
-            <h2>手动配置 PAT</h2>
-            <p>如果您已有 Personal Access Token，请在此输入：</p>
-            
-            <div style="margin: 20px 0;">
-                <input type="password" id="patInput" 
-                       placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" 
-                       style="width:100%; padding:12px; border:1px solid #ddd; border-radius:6px; font-size:14px;">
-            </div>
-            
-            <div class="info">
-                <i class="fas fa-lock"></i>
-                Token 仅存储在您的设备上，不会发送到任何服务器
-            </div>
-            
-            <button class="action-btn" onclick="savePAT()">
-                <i class="fas fa-save"></i> 保存并连接
-            </button>
-            <button class="back-btn" onclick="returnToApp()">
-                取消
-            </button>
+        <div class="status-box" style="margin-top: 25px; background-color: #E8F5E9;">
+            <h4><i class="fas fa-lightbulb"></i> 注意事项：</h4>
+            <ul style="text-align:left; padding-left: 20px;">
+                <li>确保 token 以 <code>ghp_</code> 或 <code>github_pat_</code> 开头</li>
+                <li>token 需要 <code>gist</code> 权限来创建/更新私有 Gist</li>
+                <li>数据将加密存储在您的私有 Gist 中</li>
+                <li>您可以随时在 GitHub 设置中撤销此 token</li>
+            </ul>
         </div>
     </div>
 
     <script>
-        // 获取 URL 参数
-        const urlParams = new URLSearchParams(window.location.search);
-        const code = urlParams.get('code');
-        const state = urlParams.get('state');
-        const error = urlParams.get('error');
-        const errorDescription = urlParams.get('error_description');
-        
-        // 显示/隐藏元素函数
-        function showElement(id) {
-            document.querySelectorAll('.status').forEach(el => {
-                el.style.display = 'none';
-            });
-            document.getElementById(id).style.display = 'block';
-        }
-        
-        // 返回应用
+        // 返回主应用
         function returnToApp() {
-            // 尝试关闭窗口或重定向
+            // 检查是否在 iframe 或新窗口中打开
             if (window.opener) {
                 window.close();
             } else {
-                // 重定向回应用
-                window.location.href = '../index.html';
+                // 重定向回主应用
+                const basePath = window.location.pathname.includes('/island-c/') ? 
+                    '/island-c/' : './';
+                window.location.href = basePath + 'index.html';
             }
         }
         
-        // 重试授权
-        function retryAuthorization() {
-            // 清除现有状态
-            localStorage.removeItem('github_auth_state');
-            showElement('loading');
-            
-            // 重新开始授权流程
-            setTimeout(() => {
-                if (window.opener) {
-                    window.opener.postMessage({
-                        type: 'github_auth_retry'
-                    }, '*');
-                    window.close();
-                } else {
-                    window.location.href = '../index.html#github-sync';
-                }
-            }, 1000);
-        }
-        
-        // 保存 PAT
-        function savePAT() {
-            const pat = document.getElementById('patInput').value.trim();
+        // 连接 GitHub
+        function connectWithPAT() {
+            const pat = document.getElementById('patToken').value.trim();
             
             if (!pat) {
-                alert('请输入 Personal Access Token');
+                alert('请输入 GitHub Personal Access Token');
                 return;
             }
             
+            // 验证 PAT 格式
             if (!pat.startsWith('ghp_') && !pat.startsWith('github_pat_')) {
-                if (!confirm('这个看起来不像有效的 PAT。请确认您输入的是正确的 Personal Access Token。\n\n是否继续？')) {
+                if (!confirm('这个看起来不像有效的 GitHub PAT。\n\n有效的 PAT 通常以 "ghp_" 或 "github_pat_" 开头。\n\n是否继续？')) {
                     return;
                 }
             }
             
-            showElement('loading');
-            
-            // 保存到父窗口
+            // 发送消息给父窗口/存储并返回
             if (window.opener) {
+                // 在弹出窗口中打开的情况
                 window.opener.postMessage({
                     type: 'github_pat_received',
-                    pat: pat
+                    pat: pat,
+                    timestamp: new Date().toISOString()
                 }, '*');
                 
+                // 显示成功消息
+                document.querySelector('.status-box.info').innerHTML = `
+                    <h3><i class="fas fa-check-circle" style="color:#4CAF50"></i> 连接成功！</h3>
+                    <p>GitHub 账号已连接，正在返回 island...</p>
+                `;
+                
+                // 自动关闭窗口
                 setTimeout(() => {
                     window.close();
                 }, 1500);
+                
             } else {
-                // 保存到 localStorage 并重定向
+                // 直接访问的情况，存储到 localStorage 并重定向
                 localStorage.setItem('github_pat_temp', pat);
-                window.location.href = '../index.html#github-sync';
+                
+                // 重定向回主应用
+                const basePath = window.location.pathname.includes('/island-c/') ? 
+                    '/island-c/' : './';
+                window.location.href = basePath + 'index.html#github-sync';
             }
         }
-        
-        // 处理授权回调
-        function handleAuthorization() {
-            if (error) {
-                // OAuth 错误
-                document.getElementById('errorMessage').textContent = 
-                    errorDescription || error || '授权失败';
-                showElement('error');
-                return;
-            }
-            
-            if (code) {
-                // OAuth 授权码模式
-                showElement('loading');
-                
-                // 发送消息给父窗口
-                if (window.opener) {
-                    window.opener.postMessage({
-                        type: 'github_oauth_callback',
-                        code: code,
-                        state: state
-                    }, '*');
-                    
-                    // 显示成功并自动关闭
-                    setTimeout(() => {
-                        showElement('success');
-                        setTimeout(() => {
-                            window.close();
-                        }, 2000);
-                    }, 1000);
-                } else {
-                    // 直接模式，保存 code 并重定向
-                    localStorage.setItem('github_oauth_code', code);
-                    localStorage.setItem('github_oauth_state', state || '');
-                    window.location.href = '../index.html#github-sync';
-                }
-            } else {
-                // 没有 code，可能是直接访问或手动配置
-                const hasPAT = localStorage.getItem('github_pat_temp');
-                
-                if (hasPAT) {
-                    // 已有 PAT，自动处理
-                    if (window.opener) {
-                        window.opener.postMessage({
-                            type: 'github_pat_received',
-                            pat: hasPAT
-                        }, '*');
-                        localStorage.removeItem('github_pat_temp');
-                        showElement('success');
-                        setTimeout(() => {
-                            window.close();
-                        }, 1500);
-                    } else {
-                        showElement('success');
-                        setTimeout(() => {
-                            window.location.href = '../index.html#github-sync';
-                        }, 1500);
-                    }
-                } else {
-                    // 显示手动配置界面
-                    showElement('manualConfig');
-                }
-            }
-        }
-        
-        // 页面加载完成后处理
-        document.addEventListener('DOMContentLoaded', function() {
-            // 设置 Font Awesome
-            const faScript = document.createElement('script');
-            faScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js';
-            document.head.appendChild(faScript);
-            
-            // 处理授权
-            handleAuthorization();
-            
-            // 监听父窗口消息
-            window.addEventListener('message', function(event) {
-                if (event.data && event.data.type === 'github_auth_status') {
-                    if (event.data.success) {
-                        showElement('success');
-                        setTimeout(() => {
-                            window.close();
-                        }, 1500);
-                    } else {
-                        document.getElementById('errorMessage').textContent = 
-                            event.data.message || '授权失败';
-                        showElement('error');
-                    }
-                }
-            });
-            
-            // 如果5秒后还在加载，显示手动配置选项
-            setTimeout(() => {
-                if (document.getElementById('loading').style.display !== 'none') {
-                    const loadingDiv = document.getElementById('loading');
-                    loadingDiv.innerHTML += `
-                        <p style="margin-top:20px; color:#666;">
-                            授权过程较慢？<br>
-                            <button onclick="showElement('manualConfig')" 
-                                    style="background:none; border:none; color:#0366d6; cursor:pointer; text-decoration:underline;">
-                                尝试手动配置
-                            </button>
-                        </p>
-                    `;
-                }
-            }, 5000);
-        });
         
         // 监听键盘事件
         document.addEventListener('keydown', function(event) {
-            // ESC 键返回
             if (event.key === 'Escape') {
                 returnToApp();
             }
+            if (event.key === 'Enter') {
+                connectWithPAT();
+            }
+        });
+        
+        // 页面加载完成后的处理
+        document.addEventListener('DOMContentLoaded', function() {
+            // 检查 URL 参数（如果有 OAuth 回调）
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
             
-            // Enter 键保存 PAT
-            if (event.key === 'Enter' && document.getElementById('manualConfig').style.display === 'block') {
-                savePAT();
+            if (code) {
+                // 如果是 OAuth 回调，显示不同界面
+                document.querySelector('.container').innerHTML = `
+                    <div class="logo">
+                        <i class="fas fa-island-tropical"></i>
+                    </div>
+                    
+                    <div class="status-box info">
+                        <h3><i class="fas fa-sync-alt"></i> OAuth 授权回调</h3>
+                        <p>检测到 OAuth 授权码，正在处理...</p>
+                    </div>
+                    
+                    <p style="color:#666;">
+                        island 目前使用 Personal Access Token 方式。<br>
+                        请使用页面下方的 PAT 配置方式。
+                    </p>
+                    
+                    <div style="margin: 20px;">
+                        <button class="action-btn" onclick="window.location.reload()">
+                            <i class="fas fa-redo"></i> 返回 PAT 配置
+                        </button>
+                    </div>
+                `;
+            }
+            
+            // 自动聚焦到输入框
+            document.getElementById('patToken').focus();
+            
+            // 检查是否已经有临时 PAT
+            const tempPAT = localStorage.getItem('github_pat_temp');
+            if (tempPAT) {
+                document.getElementById('patToken').value = tempPAT;
+                setTimeout(() => {
+                    if (confirm('检测到已保存的 PAT，是否使用这个 token 连接？')) {
+                        connectWithPAT();
+                    } else {
+                        localStorage.removeItem('github_pat_temp');
+                    }
+                }, 500);
             }
         });
     </script>
