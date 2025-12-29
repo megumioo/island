@@ -195,13 +195,17 @@
 
 <div class="container"> 
 <div class="nav-tabs"> 
-<div class="nav-tab active" data-section="day"> 
-<div class="tab-icon"><i class="fas fa-sun"></i></div> 
-<div class="tab-text">白天记录</div> 
+<div class="nav-tab active" data-section="timeline"> 
+<div class="tab-icon"><i class="fas fa-stream"></i></div> 
+<div class="tab-text">时间轴</div> 
 </div> 
-<div class="nav-tab" data-section="night"> 
-<div class="tab-icon"><i class="fas fa-moon"></i></div> 
-<div class="tab-text">晚上记录</div> 
+<div class="nav-tab" data-section="checkin"> 
+<div class="tab-icon"><i class="fas fa-check-circle"></i></div> 
+<div class="tab-text">打卡点</div> 
+</div> 
+<div class="nav-tab" data-section="study-exercise"> 
+<div class="tab-icon"><i class="fas fa-dumbbell"></i></div> 
+<div class="tab-text">学习运动</div> 
 </div> 
 <div class="nav-tab" data-section="calendar"> 
 <div class="tab-icon"><i class="fas fa-calendar-alt"></i></div> 
@@ -697,7 +701,39 @@
 </button> 
 </div> 
 </div> 
+<div class="section checkin-section" id="checkinSection"> 
+<h2 class="section-title"><i class="fas fa-check-circle"></i> 每日打卡点</h2> 
 
+<div class="checkin-grid">
+  <div class="checkin-card" onclick="toggleCheckin('iron')">
+    <div class="checkin-icon"><i class="fas fa-pills"></i></div>
+    <div class="checkin-title">补铁片</div>
+    <div class="checkin-status" id="ironStatus">未完成</div>
+  </div>
+  
+  <div class="checkin-card" onclick="toggleCheckin('vitamin')">
+    <div class="checkin-icon"><i class="fas fa-capsules"></i></div>
+    <div class="checkin-title">维生素</div>
+    <div class="checkin-status" id="vitaminStatus">未完成</div>
+  </div>
+  
+  <div class="checkin-card" onclick="toggleCheckin('magnesium')">
+    <div class="checkin-icon"><i class="fas fa-pills"></i></div>
+    <div class="checkin-title">补镁片</div>
+    <div class="checkin-status" id="magnesiumStatus">未完成</div>
+  </div>
+  
+  <div class="checkin-card" onclick="toggleCheckin('bodycare')">
+    <div class="checkin-icon"><i class="fas fa-spa"></i></div>
+    <div class="checkin-title">身体护理</div>
+    <div class="checkin-status" id="bodycareStatus">未完成</div>
+  </div>
+</div>
+
+<button class="save-btn" onclick="saveAllCheckins()" style="margin-top: 20px;">
+  <i class="fas fa-save"></i> 保存所有打卡
+</button>
+</div> 
 <div class="collapsible-block" id="补镁片打卡-block"> 
 <div class="block-header" onclick="toggleBlock('补镁片打卡')"> 
 <h3><i class="fas fa-pills"></i> 补镁片打卡</h3> 
@@ -1191,4 +1227,5 @@
 
 </body> 
 </html>
+
 
