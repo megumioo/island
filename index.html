@@ -216,7 +216,7 @@
 <div class="section day-section active" id="daySection"> 
 <h2 class="section-title"><i class="fas fa-sun"></i> 白天记录</h2> 
 <div class="collapsible-block" id="睡眠复盘-block"> 
-<div class="block-header" onclick="console.log('点击睡眠复盘')"> 
+<div class="block-header" onclick="toggleBlock('睡眠复盘')"> 
 <h3><i class="fas fa-bed"></i> 睡眠复盘</h3> 
 <button class="block-toggle"> 
 <i class="fas fa-chevron-down"></i> 
@@ -246,7 +246,7 @@
 </div> 
 
 <div class="collapsible-block" id="早餐记录-block"> 
-<div class="block-header" onclick="console.log('点击早餐记录')"> 
+<div class="block-header" onclick="toggleBlock('早餐记录')"> 
 <h3><i class="fas fa-coffee"></i> 早餐记录</h3> 
 <button class="block-toggle"> 
 <i class="fas fa-chevron-down"></i> 
@@ -270,7 +270,7 @@
 </div> 
 
 <div class="collapsible-block" id="补铁片打卡-block"> 
-<div class="block-header" onclick="console.log('点击补铁片打卡')"> 
+<div class="block-header" onclick="toggleBlock('补铁片打卡')"> 
 <h3><i class="fas fa-pills"></i> 补铁片打卡</h3> 
 <button class="block-toggle"> 
 <i class="fas fa-chevron-down"></i> 
@@ -1197,6 +1197,7 @@
 
 </body>
 </html>
+
 
 
 
