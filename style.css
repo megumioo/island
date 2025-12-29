@@ -1806,4 +1806,98 @@ font-size: 18px;
 .section-title i { 
 font-size: 22px; 
 } 
+
 } 
+/* ==================== 打卡点卡片样式 ==================== */
+.checkin-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.checkin-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 2px solid #E0E0E0;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.05);
+}
+
+.checkin-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    border-color: #4FC3F7;
+}
+
+.checkin-card.completed {
+    border-color: #4CAF50;
+    background-color: #E8F5E9;
+}
+
+.checkin-icon {
+    font-size: 32px;
+    color: #4FC3F7;
+    margin-bottom: 10px;
+}
+
+.checkin-card.completed .checkin-icon {
+    color: #4CAF50;
+}
+
+.checkin-title {
+    font-weight: 600;
+    color: #5D4037;
+    margin-bottom: 8px;
+    font-size: 16px;
+}
+
+.checkin-status {
+    font-size: 14px;
+    color: #795548;
+    font-weight: 500;
+}
+
+.checkin-card.completed .checkin-status {
+    color: #4CAF50;
+    font-weight: 600;
+}
+
+/* ==================== 新板块样式 ==================== */
+.timeline-section {
+    background-color: #E8F5E9;
+    border-radius: var(--radius);
+    padding: var(--padding);
+    margin-bottom: var(--gap);
+    border: 1px solid rgba(76, 175, 80, 0.1);
+}
+
+.checkin-section {
+    background-color: #FFF3E0;
+    border-radius: var(--radius);
+    padding: var(--padding);
+    margin-bottom: var(--gap);
+    border: 1px solid rgba(255, 179, 77, 0.1);
+}
+
+.study-exercise-section {
+    background-color: #E3F2FD;
+    border-radius: var(--radius);
+    padding: var(--padding);
+    margin-bottom: var(--gap);
+    border: 1px solid rgba(33, 150, 243, 0.1);
+}
+
+/* ==================== 移动端适配 ==================== */
+@media (max-width: 480px) {
+    .checkin-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .checkin-card {
+        padding: 15px;
+    }
+}
