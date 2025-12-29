@@ -1270,10 +1270,69 @@ function updateTime() {
 setInterval(updateTime, 1000);
 updateTime();
 </script>
+<script>
+// 修复页面功能
+console.log('修复页面功能...');
+
+// 确保 toggleBlock 函数存在
+if (typeof window.toggleBlock === 'undefined') {
+    window.toggleBlock = function(blockName) {
+        console.log('展开/收起: ' + blockName);
+        const content = document.getElementById(blockName + '-content');
+        const block = document.getElementById(blockName + '-block');
+        
+        if (content && block) {
+            // 切换展开状态
+            const isExpanded = content.classList.toggle('expanded');
+            
+            // 切换箭头图标
+            const toggleIcon = block.querySelector('.block-toggle i');
+            if (toggleIcon) {
+                if (isExpanded) {
+                    toggleIcon.classList.remove('fa-chevron-down');
+                    toggleIcon.classList.add('fa-chevron-up');
+                } else {
+                    toggleIcon.classList.remove('fa-chevron-up');
+                    toggleIcon.classList.add('fa-chevron-down');
+                }
+            }
+        }
+    };
+}
+
+// 修复所有 onclick 调用
+document.querySelectorAll('[onclick*="toggleBlock"]').forEach(btn => {
+    const oldOnclick = btn.getAttribute('onclick');
+    if (oldOnclick && oldOnclick.includes('console.log')) {
+        // 已经是修复过的，保持原样
+    } else {
+        const blockName = oldOnclick.match(/toggleBlock\('([^']+)'\)/);
+        if (blockName && blockName[1]) {
+            btn.setAttribute('onclick', `toggleBlock('${blockName[1]}')`);
+        }
+    }
+});
+
+// 修复 GitHub 按钮
+const githubBtn = document.querySelector('.github-sync-button');
+if (githubBtn) {
+    githubBtn.onclick = function() {
+        if (typeof openGitHubSyncPanel !== 'undefined') {
+            openGitHubSyncPanel();
+        } else {
+            console.log('GitHub 同步功能需要刷新页面');
+            alert('GitHub 同步功能已加载，请刷新页面使用');
+        }
+    };
+}
+
+console.log('页面功能修复完成');
+</script>    
 </script>
 </body> 
 
 </html>
+
 
 
 
