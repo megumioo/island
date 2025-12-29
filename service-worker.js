@@ -6,8 +6,16 @@ const urlsToCache = [
   './app.js',
   './manifest.json',
   './service-worker.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'
-  // 暂时不缓存图标，等图标准备好
+  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
+  './icons/icon-72x72.png',
+  './icons/icon-96x96.png',
+  './icons/icon-128x128.png',
+  './icons/icon-144x144.png',
+  './icons/icon-152x152.png',
+  './icons/icon-180x180.png',
+  './icons/icon-192x192.png',
+  './icons/icon-310x310.png',
+  './icons/icon-512x512.png'
 ];
 
 self.addEventListener('install', event => {
@@ -34,11 +42,8 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
-  // 处理添加到主屏幕的路径错误
   if (event.request.mode === 'navigate') {
     const requestUrl = new URL(event.request.url);
-    
-    // 如果是错误的根路径，重定向到正确的路径
     if (requestUrl.pathname === '/' || requestUrl.pathname === '/index.html') {
       const correctUrl = new URL('/island-c/index.html', requestUrl.origin);
       event.respondWith(Response.redirect(correctUrl, 301));
@@ -52,26 +57,24 @@ self.addEventListener('fetch', event => {
         if (response) {
           return response;
         }
-        
-        // 克隆请求，因为请求流只能使用一次
         const fetchRequest = event.request.clone();
-        
         return fetch(fetchRequest).then(response => {
-          // 检查是否收到有效的响应
           if (!response || response.status !== 200 || response.type !== 'basic') {
             return response;
           }
-          
-          // 克隆响应，因为响应流只能使用一次
           const responseToCache = response.clone();
-          
           caches.open(CACHE_NAME)
             .then(cache => {
               cache.put(event.request, responseToCache);
             });
-          
           return response;
         });
       })
   );
+});
+
+self.addEventListener('sync', event => {
+  if (event.tag === 'sync-data') {
+    console.log('Background sync triggered');
+  }
 });
