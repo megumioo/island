@@ -992,7 +992,7 @@ document.getElementById('expenseOverview').textContent = `${todayExpense.toFixed
 } 
 
 function archiveToday() { 
-if (!confirm(❤️ 确认要归档今日的记录吗？\n归档后今日数据将永久保存，不可修改哦！')) { 
+if (!confirm('确认要归档今日的记录吗？\\n归档后今日数据将永久保存，不可修改哦！')) { 
 return; 
 } 
 const dateStr = formatDate(new Date()); 
@@ -2118,5 +2118,6 @@ li.textContent = '暂无娱乐记录';
 entertainmentList.appendChild(li); 
 } 
 } 
+
 
 // ==================== 新增结束 ====================
