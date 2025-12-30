@@ -530,11 +530,13 @@ let selectedDate = todayStr;
 let islandInteractions = {}; 
 let importantDates = {}; 
 let todoItemCount = 1; 
-let doneItemCount = 1; 
+let doneItemCount = 1;
+
 // ========== 新增：财务多条目变量 ==========
 let incomeItemCount = 1;
 let expenseItemCount = 1;
 // ========== 新增结束 ==========
+
 document.addEventListener('DOMContentLoaded', function() { 
     updateDateTime(); 
     setInterval(updateDateTime, 1000); 
@@ -546,12 +548,15 @@ document.addEventListener('DOMContentLoaded', function() {
     updateReviewData(); 
     loadIslandInteractions(); 
     loadImportantDates(); 
-    updateOverviewFromTemp();  
+    updateOverviewFromTemp(); 
+    // document.getElementById('financeDate').value = todayStr; // 这行已删除，因为financeDate不存在于新设计中
     document.getElementById('importantDate').value = todayStr; 
     loadWorkData(); 
-// ========== 新增：初始化财务数据 ==========
+    
+    // ========== 新增：初始化财务数据 ==========
     loadFinanceData();
     // ========== 新增结束 ==========
+    
     initNavigation(); 
     initOverviewPanel(); 
     initNavSidebar(); 
@@ -940,7 +945,11 @@ function updateOverviewFromTemp() {
         const doneCount = latestWork.done ? latestWork.done.length : 0; 
         workOverview = `${doneCount}/${todoCount}`; 
     } 
-    document.getElementById('workOverview').textContent = workOverview; 
+    // 安全设置
+    const workOverviewEl = document.getElementById('workOverview');
+    if (workOverviewEl) {
+        workOverviewEl.textContent = workOverview;
+    }
 
     const houseworkData = JSON.parse(localStorage.getItem(STORAGE_KEYS.HOUSEWORK + '_TEMP') || '{}'); 
     let houseworkScore = 0; 
@@ -948,7 +957,10 @@ function updateOverviewFromTemp() {
         const latestHousework = houseworkData[dateStr][houseworkData[dateStr].length - 1]; 
         houseworkScore = latestHousework.score || 0; 
     } 
-    document.getElementById('houseworkOverview').textContent = `${houseworkScore}分`; 
+    const houseworkOverviewEl = document.getElementById('houseworkOverview');
+    if (houseworkOverviewEl) {
+        houseworkOverviewEl.textContent = `${houseworkScore}分`;
+    }
 
     const studyData = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDY + '_TEMP') || '{}'); 
     let totalStudyTime = 0; 
@@ -957,7 +969,10 @@ function updateOverviewFromTemp() {
             totalStudyTime += record.duration || 0; 
         }); 
     } 
-    document.getElementById('studyOverview').textContent = `${totalStudyTime}分钟`; 
+    const studyOverviewEl = document.getElementById('studyOverview');
+    if (studyOverviewEl) {
+        studyOverviewEl.textContent = `${totalStudyTime}分钟`;
+    }
 
     const exerciseData = JSON.parse(localStorage.getItem(STORAGE_KEYS.EXERCISE + '_TEMP') || '{}'); 
     let totalExerciseTime = 0; 
@@ -966,11 +981,15 @@ function updateOverviewFromTemp() {
             totalExerciseTime += record.duration || 0; 
         }); 
     } 
-    document.getElementById('exerciseOverview').textContent = `${totalExerciseTime}分钟`; 
+    const exerciseOverviewEl = document.getElementById('exerciseOverview');
+    if (exerciseOverviewEl) {
+        exerciseOverviewEl.textContent = `${totalExerciseTime}分钟`;
+    }
 
     const financeData = JSON.parse(localStorage.getItem(STORAGE_KEYS.FINANCE + '_TEMP') || '{}'); 
     let todayExpense = 0; 
-// ========== 修改：适应新的财务数据结构 ==========
+    
+    // ========== 修改：适应新的财务数据结构 ==========
     if (financeData[dateStr]) {
         const data = financeData[dateStr];
         
@@ -980,22 +999,16 @@ function updateOverviewFromTemp() {
                 todayExpense += record.amount || 0;
             });
         }
-        
-        // 处理收入（虽然概览只显示支出，但计算总收入以备后用）
-        let todayIncome = 0;
-        if (data.incomes && Array.isArray(data.incomes)) {
-            data.incomes.forEach(record => {
-                todayIncome += record.amount || 0;
-            });
-        }
     }
     // ========== 修改结束 ==========
-    // ===== 修复：添加空值检查 =====
+    
+    // 安全设置
     const expenseOverviewEl = document.getElementById('expenseOverview');
     if (expenseOverviewEl) {
         expenseOverviewEl.textContent = `${todayExpense.toFixed(2)}元`;
     }
-    // ===== 修复结束 =====
+} 
+
 function archiveToday() { 
     if (!confirm('确认要归档今日的记录吗？\\n归档后今日数据将永久保存，不可修改哦！')) { 
         return; 
@@ -1051,7 +1064,7 @@ function clearAllForms() {
         btn.classList.remove('active'); 
     }); 
     resetWorkBoard(); 
-    document.getElementById('financeDate').value = formatDate(new Date()); 
+    // document.getElementById('financeDate').value = formatDate(new Date()); // 这行已删除
     document.getElementById('houseworkScore').value = '0'; 
     initCollapsibleBlocks(); 
 } 
@@ -1523,27 +1536,303 @@ function saveBodyCare() {
     } 
 } 
 
-function saveFinance() { 
-    const financeType = document.getElementById('financeType').value; 
-    const financeCategory = document.getElementById('financeCategory').value; 
-    const financeAmount = document.getElementById('financeAmount').value; 
-    const financeDate = document.getElementById('financeDate').value; 
-    const financeDescription = document.getElementById('financeDescription').value; 
-    if (!financeAmount || !financeDate) { 
-        showNotification('请填写金额和日期'); 
-        return; 
-    } 
-    const data = { 
-        type: financeType, 
-        category: financeCategory, 
-        amount: parseFloat(financeAmount), 
-        date: financeDate, 
-        description: financeDescription 
-    }; 
-    if (saveTempData(STORAGE_KEYS.FINANCE, data)) { 
-        showNotification('财务记录已暂时保存！'); 
-    } 
-} 
+// ==================== 财务记账多条目功能 ====================
+
+function addFinanceItem(type) {
+    const dateStr = formatDate(new Date());
+    const containerId = type === 'income' ? 'incomeItems' : 'expenseItems';
+    const container = document.getElementById(containerId);
+    const count = type === 'income' ? ++incomeItemCount : ++expenseItemCount;
+    
+    const newItem = document.createElement('div');
+    newItem.className = `finance-item ${type}-item`;
+    newItem.innerHTML = `
+        <div class="item-number">${count}</div>
+        <div class="finance-item-content">
+            <div class="form-row">
+                <div class="form-column">
+                    <input type="number" class="finance-amount" placeholder="金额 (元)" min="0" step="0.01">
+                </div>
+                <div class="form-column">
+                    <select class="finance-category">
+                        ${type === 'income' ? 
+                            '<option value="工资">工资</option>' +
+                            '<option value="兼职">兼职</option>' +
+                            '<option value="理财收益">理财收益</option>' +
+                            '<option value="礼物">礼物</option>' +
+                            '<option value="其他收入">其他收入</option>' :
+                            '<option value="正餐">正餐</option>' +
+                            '<option value="零食奶茶宵夜">零食奶茶宵夜</option>' +
+                            '<option value="日用">日用</option>' +
+                            '<option value="服饰">服饰</option>' +
+                            '<option value="游戏">游戏</option>' +
+                            '<option value="兴趣爱好">兴趣爱好</option>' +
+                            '<option value="礼物">礼物</option>' +
+                            '<option value="交通">交通</option>' +
+                            '<option value="医疗">医疗</option>' +
+                            '<option value="其他支出">其他支出</option>'
+                        }
+                    </select>
+                </div>
+            </div>
+            <input type="text" class="finance-description" placeholder="${type === 'income' ? '收入' : '支出'}描述...">
+            <input type="date" class="finance-date" value="${dateStr}">
+            <div class="finance-item-actions">
+                <button class="delete-finance-item" onclick="deleteFinanceItem(this, '${type}')" title="删除此项">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+    `;
+    
+    container.appendChild(newItem);
+    updateFinanceItemNumbers(type);
+    calculateFinanceSummary();
+}
+
+function deleteFinanceItem(button, type) {
+    const item = button.closest(`.${type}-item`);
+    if (item) {
+        item.remove();
+        updateFinanceItemNumbers(type);
+        calculateFinanceSummary();
+    }
+}
+
+function updateFinanceItemNumbers(type) {
+    const containerId = type === 'income' ? 'incomeItems' : 'expenseItems';
+    const items = document.querySelectorAll(`#${containerId} .finance-item`);
+    
+    items.forEach((item, index) => {
+        const numberDiv = item.querySelector('.item-number');
+        if (numberDiv) {
+            numberDiv.textContent = index + 1;
+        }
+    });
+    
+    if (type === 'income') {
+        incomeItemCount = items.length;
+    } else {
+        expenseItemCount = items.length;
+    }
+}
+
+function calculateFinanceSummary() {
+    let totalIncome = 0;
+    let totalExpense = 0;
+    
+    // 计算收入总额
+    const incomeAmounts = document.querySelectorAll('.income-item .finance-amount');
+    incomeAmounts.forEach(input => {
+        const amount = parseFloat(input.value) || 0;
+        totalIncome += amount;
+    });
+    
+    // 计算支出总额
+    const expenseAmounts = document.querySelectorAll('.expense-item .finance-amount');
+    expenseAmounts.forEach(input => {
+        const amount = parseFloat(input.value) || 0;
+        totalExpense += amount;
+    });
+    
+    // 更新显示
+    const todayIncomeTotal = document.getElementById('todayIncomeTotal');
+    const todayExpenseTotal = document.getElementById('todayExpenseTotal');
+    const todayBalance = document.getElementById('todayBalance');
+    const expenseOverview = document.getElementById('expenseOverview');
+    
+    if (todayIncomeTotal) todayIncomeTotal.textContent = totalIncome.toFixed(2);
+    if (todayExpenseTotal) todayExpenseTotal.textContent = totalExpense.toFixed(2);
+    if (todayBalance) todayBalance.textContent = (totalIncome - totalExpense).toFixed(2);
+    if (expenseOverview) expenseOverview.textContent = `${totalExpense.toFixed(2)}元`;
+}
+
+function loadFinanceData() {
+    const dateStr = formatDate(new Date());
+    const financeData = JSON.parse(localStorage.getItem(STORAGE_KEYS.FINANCE + '_TEMP') || '{}');
+    
+    if (financeData[dateStr]) {
+        const data = financeData[dateStr];
+        
+        // 清空当前显示
+        const incomeItems = document.getElementById('incomeItems');
+        const expenseItems = document.getElementById('expenseItems');
+        if (incomeItems) incomeItems.innerHTML = '';
+        if (expenseItems) expenseItems.innerHTML = '';
+        
+        let incomeIndex = 0;
+        let expenseIndex = 0;
+        
+        // 加载收入项
+        if (data.incomes && Array.isArray(data.incomes)) {
+            data.incomes.forEach(record => {
+                const container = document.getElementById('incomeItems');
+                if (container) {
+                    const newItem = createFinanceItemElement('income', incomeIndex++, record);
+                    container.appendChild(newItem);
+                }
+            });
+        }
+        
+        // 加载支出项
+        if (data.expenses && Array.isArray(data.expenses)) {
+            data.expenses.forEach(record => {
+                const container = document.getElementById('expenseItems');
+                if (container) {
+                    const newItem = createFinanceItemElement('expense', expenseIndex++, record);
+                    container.appendChild(newItem);
+                }
+            });
+        }
+        
+        incomeItemCount = incomeIndex;
+        expenseItemCount = expenseIndex;
+        updateFinanceItemNumbers('income');
+        updateFinanceItemNumbers('expense');
+        calculateFinanceSummary();
+    }
+}
+
+function createFinanceItemElement(type, index, record) {
+    const item = document.createElement('div');
+    item.className = `finance-item ${type}-item`;
+    item.innerHTML = `
+        <div class="item-number">${index + 1}</div>
+        <div class="finance-item-content">
+            <div class="form-row">
+                <div class="form-column">
+                    <input type="number" class="finance-amount" placeholder="金额 (元)" min="0" step="0.01" value="${record.amount || ''}">
+                </div>
+                <div class="form-column">
+                    <select class="finance-category">
+                        ${getCategoryOptions(type, record.category)}
+                    </select>
+                </div>
+            </div>
+            <input type="text" class="finance-description" placeholder="${type === 'income' ? '收入' : '支出'}描述..." value="${record.description || ''}">
+            <input type="date" class="finance-date" value="${record.date || formatDate(new Date())}">
+            <div class="finance-item-actions">
+                <button class="delete-finance-item" onclick="deleteFinanceItem(this, '${type}')" title="删除此项">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+    `;
+    
+    // 设置选中正确的分类
+    if (record.category) {
+        const select = item.querySelector('select');
+        if (select) {
+            select.value = record.category;
+        }
+    }
+    
+    return item;
+}
+
+function getCategoryOptions(type, selectedCategory) {
+    const incomeOptions = [
+        {value: '工资', label: '工资'},
+        {value: '兼职', label: '兼职'},
+        {value: '理财收益', label: '理财收益'},
+        {value: '礼物', label: '礼物'},
+        {value: '其他收入', label: '其他收入'}
+    ];
+    
+    const expenseOptions = [
+        {value: '正餐', label: '正餐'},
+        {value: '零食奶茶宵夜', label: '零食奶茶宵夜'},
+        {value: '日用', label: '日用'},
+        {value: '服饰', label: '服饰'},
+        {value: '游戏', label: '游戏'},
+        {value: '兴趣爱好', label: '兴趣爱好'},
+        {value: '礼物', label: '礼物'},
+        {value: '交通', label: '交通'},
+        {value: '医疗', label: '医疗'},
+        {value: '其他支出', label: '其他支出'}
+    ];
+    
+    const options = type === 'income' ? incomeOptions : expenseOptions;
+    let html = '';
+    
+    options.forEach(option => {
+        const selected = option.value === selectedCategory ? 'selected' : '';
+        html += `<option value="${option.value}" ${selected}>${option.label}</option>`;
+    });
+    
+    return html;
+}
+
+// 修改原有的 saveFinance 函数
+function saveFinance() {
+    const dateStr = formatDate(new Date());
+    const financeData = {
+        incomes: [],
+        expenses: []
+    };
+    
+    // 收集收入项
+    const incomeItems = document.querySelectorAll('.income-item');
+    incomeItems.forEach((item, index) => {
+        const amountInput = item.querySelector('.finance-amount');
+        const categorySelect = item.querySelector('.finance-category');
+        const descriptionInput = item.querySelector('.finance-description');
+        const dateInput = item.querySelector('.finance-date');
+        
+        if (amountInput && categorySelect && descriptionInput && dateInput) {
+            const amount = amountInput.value;
+            const category = categorySelect.value;
+            const description = descriptionInput.value;
+            const date = dateInput.value;
+            
+            if (amount && parseFloat(amount) > 0) {
+                financeData.incomes.push({
+                    id: index + 1,
+                    amount: parseFloat(amount),
+                    category: category,
+                    description: description,
+                    date: date || dateStr,
+                    type: '收入'
+                });
+            }
+        }
+    });
+    
+    // 收集支出项
+    const expenseItems = document.querySelectorAll('.expense-item');
+    expenseItems.forEach((item, index) => {
+        const amountInput = item.querySelector('.finance-amount');
+        const categorySelect = item.querySelector('.finance-category');
+        const descriptionInput = item.querySelector('.finance-description');
+        const dateInput = item.querySelector('.finance-date');
+        
+        if (amountInput && categorySelect && descriptionInput && dateInput) {
+            const amount = amountInput.value;
+            const category = categorySelect.value;
+            const description = descriptionInput.value;
+            const date = dateInput.value;
+            
+            if (amount && parseFloat(amount) > 0) {
+                financeData.expenses.push({
+                    id: index + 1,
+                    amount: parseFloat(amount),
+                    category: category,
+                    description: description,
+                    date: date || dateStr,
+                    type: '支出'
+                });
+            }
+        }
+    });
+    
+    // 保存数据
+    if (saveTempData(STORAGE_KEYS.FINANCE, financeData)) {
+        showNotification('财务记录已暂时保存！');
+        calculateFinanceSummary();
+    }
+}
+
+// ==================== 财务功能结束 ====================
 
 function loadImportantDates() { 
     const data = localStorage.getItem(STORAGE_KEYS.IMPORTANT_DATES); 
@@ -1828,7 +2117,8 @@ function updateOverview() {
         const doneCount = latestWork.done ? latestWork.done.length : 0; 
         workOverview = `${doneCount}/${todoCount}`; 
     } 
-    document.getElementById('workOverview').textContent = workOverview; 
+    const workOverviewEl = document.getElementById('workOverview');
+    if (workOverviewEl) workOverviewEl.textContent = workOverview;
 
     const houseworkData = JSON.parse(localStorage.getItem(STORAGE_KEYS.HOUSEWORK) || '{}'); 
     let houseworkScore = 0; 
@@ -1836,7 +2126,8 @@ function updateOverview() {
         const latestHousework = houseworkData[dateStr][houseworkData[dateStr].length - 1]; 
         houseworkScore = latestHousework.score || 0; 
     } 
-    document.getElementById('houseworkOverview').textContent = `${houseworkScore}分`; 
+    const houseworkOverviewEl = document.getElementById('houseworkOverview');
+    if (houseworkOverviewEl) houseworkOverviewEl.textContent = `${houseworkScore}分`;
 
     const studyData = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDY) || '{}'); 
     let totalStudyTime = 0; 
@@ -1845,7 +2136,8 @@ function updateOverview() {
             totalStudyTime += record.duration || 0; 
         }); 
     } 
-    document.getElementById('studyOverview').textContent = `${totalStudyTime}分钟`; 
+    const studyOverviewEl = document.getElementById('studyOverview');
+    if (studyOverviewEl) studyOverviewEl.textContent = `${totalStudyTime}分钟`;
 
     const exerciseData = JSON.parse(localStorage.getItem(STORAGE_KEYS.EXERCISE) || '{}'); 
     let totalExerciseTime = 0; 
@@ -1854,306 +2146,24 @@ function updateOverview() {
             totalExerciseTime += record.duration || 0; 
         }); 
     } 
-    document.getElementById('exerciseOverview').textContent = `${totalExerciseTime}分钟`; 
+    const exerciseOverviewEl = document.getElementById('exerciseOverview');
+    if (exerciseOverviewEl) exerciseOverviewEl.textContent = `${totalExerciseTime}分钟`;
 
     const financeData = JSON.parse(localStorage.getItem(STORAGE_KEYS.FINANCE) || '{}'); 
     let todayExpense = 0; 
     if (financeData[dateStr]) { 
-        financeData[dateStr].forEach(record => { 
-            if (record.type === '支出') { 
-                todayExpense += record.amount || 0; 
-            } 
-        }); 
-    } 
-    document.getElementById('expenseOverview').textContent = `${todayExpense.toFixed(2)}元`; 
-} 
-// ==================== 财务记账多条目功能 ====================
-function addFinanceItem(type) {
-    const dateStr = formatDate(new Date()); // 获取当前日期
-    const containerId = type === 'income' ? 'incomeItems' : 'expenseItems';
-    const container = document.getElementById(containerId);
-    const count = type === 'income' ? ++incomeItemCount : ++expenseItemCount;
-    
-    const newItem = document.createElement('div');
-    newItem.className = `finance-item ${type}-item`;
-    newItem.innerHTML = `
-        <div class="item-number">${count}</div>
-        <div class="finance-item-content">
-            <div class="form-row">
-                <div class="form-column">
-                    <input type="number" class="finance-amount" placeholder="金额 (元)" min="0" step="0.01">
-                </div>
-                <div class="form-column">
-                    <select class="finance-category">
-                        ${type === 'income' ? 
-                            '<option value="工资">工资</option>' +
-                            '<option value="兼职">兼职</option>' +
-                            '<option value="理财收益">理财收益</option>' +
-                            '<option value="礼物">礼物</option>' +
-                            '<option value="其他收入">其他收入</option>' :
-                            '<option value="正餐">正餐</option>' +
-                            '<option value="零食奶茶宵夜">零食奶茶宵夜</option>' +
-                            '<option value="日用">日用</option>' +
-                            '<option value="服饰">服饰</option>' +
-                            '<option value="游戏">游戏</option>' +
-                            '<option value="兴趣爱好">兴趣爱好</option>' +
-                            '<option value="礼物">礼物</option>' +
-                            '<option value="交通">交通</option>' +
-                            '<option value="医疗">医疗</option>' +
-                            '<option value="其他支出">其他支出</option>'
-                        }
-                    </select>
-                </div>
-            </div>
-            <input type="text" class="finance-description" placeholder="${type === 'income' ? '收入' : '支出'}描述...">
-            <input type="date" class="finance-date" value="${dateStr}">
-            <div class="finance-item-actions">
-                <button class="delete-finance-item" onclick="deleteFinanceItem(this, '${type}')" title="删除此项">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
-        </div>
-    `;
-    
-    container.appendChild(newItem);
-    updateFinanceItemNumbers(type);
-    calculateFinanceSummary();
-}
-
-function deleteFinanceItem(button, type) {
-    const item = button.closest(`.${type}-item`);
-    if (item) {
-        item.remove();
-        updateFinanceItemNumbers(type);
-        calculateFinanceSummary();
-    }
-}
-
-function updateFinanceItemNumbers(type) {
-    const containerId = type === 'income' ? 'incomeItems' : 'expenseItems';
-    const items = document.querySelectorAll(`#${containerId} .finance-item`);
-    
-    items.forEach((item, index) => {
-        const numberDiv = item.querySelector('.item-number');
-        if (numberDiv) {
-            numberDiv.textContent = index + 1;
-        }
-    });
-    
-    if (type === 'income') {
-        incomeItemCount = items.length;
-    } else {
-        expenseItemCount = items.length;
-    }
-}
-
-function calculateFinanceSummary() {
-    let totalIncome = 0;
-    let totalExpense = 0;
-    
-    // 计算收入总额
-    const incomeAmounts = document.querySelectorAll('.income-item .finance-amount');
-    incomeAmounts.forEach(input => {
-        const amount = parseFloat(input.value) || 0;
-        totalIncome += amount;
-    });
-    
-    // 计算支出总额
-    const expenseAmounts = document.querySelectorAll('.expense-item .finance-amount');
-    expenseAmounts.forEach(input => {
-        const amount = parseFloat(input.value) || 0;
-        totalExpense += amount;
-    });
-    
-    // 更新显示
-    document.getElementById('todayIncomeTotal').textContent = totalIncome.toFixed(2);
-    document.getElementById('todayExpenseTotal').textContent = totalExpense.toFixed(2);
-    document.getElementById('todayBalance').textContent = (totalIncome - totalExpense).toFixed(2);
-    
-    // 更新今日概览
-    document.getElementById('expenseOverview').textContent = `${totalExpense.toFixed(2)}元`;
-}
-
-function loadFinanceData() {
-    const dateStr = formatDate(new Date());
-    const financeData = JSON.parse(localStorage.getItem(STORAGE_KEYS.FINANCE + '_TEMP') || '{}');
-    
-    if (financeData[dateStr]) {
         const data = financeData[dateStr];
-        
-        // 清空当前显示
-        document.getElementById('incomeItems').innerHTML = '';
-        document.getElementById('expenseItems').innerHTML = '';
-        
-        let incomeIndex = 0;
-        let expenseIndex = 0;
-        
-        // 加载收入项
-        if (data.incomes && Array.isArray(data.incomes)) {
-            data.incomes.forEach(record => {
-                const container = document.getElementById('incomeItems');
-                const newItem = createFinanceItemElement('income', incomeIndex++, record);
-                container.appendChild(newItem);
-            });
-        }
-        
-        // 加载支出项
         if (data.expenses && Array.isArray(data.expenses)) {
             data.expenses.forEach(record => {
-                const container = document.getElementById('expenseItems');
-                const newItem = createFinanceItemElement('expense', expenseIndex++, record);
-                container.appendChild(newItem);
+                if (record.type === '支出') { 
+                    todayExpense += record.amount || 0; 
+                } 
             });
         }
-        
-        incomeItemCount = incomeIndex;
-        expenseItemCount = expenseIndex;
-        updateFinanceItemNumbers('income');
-        updateFinanceItemNumbers('expense');
-        calculateFinanceSummary();
-    }
-}
-
-function createFinanceItemElement(type, index, record) {
-    const item = document.createElement('div');
-    item.className = `finance-item ${type}-item`;
-    item.innerHTML = `
-        <div class="item-number">${index + 1}</div>
-        <div class="finance-item-content">
-            <div class="form-row">
-                <div class="form-column">
-                    <input type="number" class="finance-amount" placeholder="金额 (元)" min="0" step="0.01" value="${record.amount || ''}">
-                </div>
-                <div class="form-column">
-                    <select class="finance-category">
-                        ${getCategoryOptions(type, record.category)}
-                    </select>
-                </div>
-            </div>
-            <input type="text" class="finance-description" placeholder="${type === 'income' ? '收入' : '支出'}描述..." value="${record.description || ''}">
-            <input type="date" class="finance-date" value="${record.date || formatDate(new Date())}">
-            <div class="finance-item-actions">
-                <button class="delete-finance-item" onclick="deleteFinanceItem(this, '${type}')" title="删除此项">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
-        </div>
-    `;
-    
-    // 设置选中正确的分类
-    if (record.category) {
-        const select = item.querySelector('select');
-        if (select) {
-            select.value = record.category;
-        }
-    }
-    
-    return item;
-}
-
-function getCategoryOptions(type, selectedCategory) {
-    const incomeOptions = [
-        {value: '工资', label: '工资'},
-        {value: '兼职', label: '兼职'},
-        {value: '理财收益', label: '理财收益'},
-        {value: '礼物', label: '礼物'},
-        {value: '其他收入', label: '其他收入'}
-    ];
-    
-    const expenseOptions = [
-        {value: '正餐', label: '正餐'},
-        {value: '零食奶茶宵夜', label: '零食奶茶宵夜'},
-        {value: '日用', label: '日用'},
-        {value: '服饰', label: '服饰'},
-        {value: '游戏', label: '游戏'},
-        {value: '兴趣爱好', label: '兴趣爱好'},
-        {value: '礼物', label: '礼物'},
-        {value: '交通', label: '交通'},
-        {value: '医疗', label: '医疗'},
-        {value: '其他支出', label: '其他支出'}
-    ];
-    
-    const options = type === 'income' ? incomeOptions : expenseOptions;
-    let html = '';
-    
-    options.forEach(option => {
-        const selected = option.value === selectedCategory ? 'selected' : '';
-        html += `<option value="${option.value}" ${selected}>${option.label}</option>`;
-    });
-    
-    return html;
-}
-
-// 修改原有的 saveFinance 函数
-function saveFinance() {
-    const dateStr = formatDate(new Date());
-    const financeData = {
-        incomes: [],
-        expenses: []
-    };
-    
-    // 收集收入项
-    const incomeItems = document.querySelectorAll('.income-item');
-    incomeItems.forEach((item, index) => {
-        const amountInput = item.querySelector('.finance-amount');
-        const categorySelect = item.querySelector('.finance-category');
-        const descriptionInput = item.querySelector('.finance-description');
-        const dateInput = item.querySelector('.finance-date');
-        
-        if (amountInput && categorySelect && descriptionInput && dateInput) {
-            const amount = amountInput.value;
-            const category = categorySelect.value;
-            const description = descriptionInput.value;
-            const date = dateInput.value;
-            
-            if (amount && parseFloat(amount) > 0) {
-                financeData.incomes.push({
-                    id: index + 1,
-                    amount: parseFloat(amount),
-                    category: category,
-                    description: description,
-                    date: date || dateStr,
-                    type: '收入'
-                });
-            }
-        }
-    });
-    
-    // 收集支出项
-    const expenseItems = document.querySelectorAll('.expense-item');
-    expenseItems.forEach((item, index) => {
-        const amountInput = item.querySelector('.finance-amount');
-        const categorySelect = item.querySelector('.finance-category');
-        const descriptionInput = item.querySelector('.finance-description');
-        const dateInput = item.querySelector('.finance-date');
-        
-        if (amountInput && categorySelect && descriptionInput && dateInput) {
-            const amount = amountInput.value;
-            const category = categorySelect.value;
-            const description = descriptionInput.value;
-            const date = dateInput.value;
-            
-            if (amount && parseFloat(amount) > 0) {
-                financeData.expenses.push({
-                    id: index + 1,
-                    amount: parseFloat(amount),
-                    category: category,
-                    description: description,
-                    date: date || dateStr,
-                    type: '支出'
-                });
-            }
-        }
-    });
-    
-    // 保存数据
-    if (saveTempData(STORAGE_KEYS.FINANCE, financeData)) {
-        showNotification('财务记录已暂时保存！');
-        calculateFinanceSummary();
-    }
-}
-
-// ==================== 财务功能结束 ====================
+    } 
+    const expenseOverviewEl = document.getElementById('expenseOverview');
+    if (expenseOverviewEl) expenseOverviewEl.textContent = `${todayExpense.toFixed(2)}元`;
+} 
 
 function updateReviewData() { 
     updateHealthReview(); 
@@ -2319,87 +2329,87 @@ function updateHouseworkReview() {
     } 
 } 
 
-function updateFinanceReview() {
-    const financeData = JSON.parse(localStorage.getItem(STORAGE_KEYS.FINANCE) || '{}');
-    const today = new Date();
-    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+function updateFinanceReview() { 
+    const financeData = JSON.parse(localStorage.getItem(STORAGE_KEYS.FINANCE) || '{}'); 
+    const today = new Date(); 
+    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1); 
 
-    let monthExpense = 0;
-    let monthIncome = 0;
-    let expenseDays = 0;
-    let incomeDays = 0;
-    let categoryStats = {};
+    let monthExpense = 0; 
+    let monthIncome = 0; 
+    let expenseDays = 0; 
+    let incomeDays = 0; 
+    let categoryStats = {}; 
 
-    for (let d = new Date(firstDayOfMonth); d <= today; d.setDate(d.getDate() + 1)) {
-        const dateStr = formatDate(d);
-        let dayExpense = 0;
-        let dayIncome = 0;
+    for (let d = new Date(firstDayOfMonth); d <= today; d.setDate(d.getDate() + 1)) { 
+        const dateStr = formatDate(d); 
+        let dayExpense = 0; 
+        let dayIncome = 0; 
         
-        if (financeData[dateStr]) {
-            const data = financeData[dateStr];
+        if (financeData[dateStr]) { 
+            const data = financeData[dateStr]; 
             
             // 处理支出
             if (data.expenses && Array.isArray(data.expenses)) {
-                data.expenses.forEach(record => {
-                    const amount = record.amount || 0;
-                    monthExpense += amount;
-                    dayExpense += amount;
-                    const category = record.category || '未分类';
-                    if (!categoryStats[category]) {
-                        categoryStats[category] = { expense: 0, income: 0 };
-                    }
-                    categoryStats[category].expense += amount;
-                });
+                data.expenses.forEach(record => { 
+                    const amount = record.amount || 0; 
+                    monthExpense += amount; 
+                    dayExpense += amount; 
+                    const category = record.category || '未分类'; 
+                    if (!categoryStats[category]) { 
+                        categoryStats[category] = { expense: 0, income: 0 }; 
+                    } 
+                    categoryStats[category].expense += amount; 
+                }); 
             }
             
             // 处理收入
             if (data.incomes && Array.isArray(data.incomes)) {
-                data.incomes.forEach(record => {
-                    const amount = record.amount || 0;
-                    monthIncome += amount;
-                    dayIncome += amount;
-                    const category = record.category || '未分类';
-                    if (!categoryStats[category]) {
-                        categoryStats[category] = { expense: 0, income: 0 };
-                    }
-                    categoryStats[category].income += amount;
-                });
+                data.incomes.forEach(record => { 
+                    const amount = record.amount || 0; 
+                    monthIncome += amount; 
+                    dayIncome += amount; 
+                    const category = record.category || '未分类'; 
+                    if (!categoryStats[category]) { 
+                        categoryStats[category] = { expense: 0, income: 0 }; 
+                    } 
+                    categoryStats[category].income += amount; 
+                }); 
             }
-        }
+        } 
         
-        if (dayExpense > 0) expenseDays++;
-        if (dayIncome > 0) incomeDays++;
-    }
+        if (dayExpense > 0) expenseDays++; 
+        if (dayIncome > 0) incomeDays++; 
+    } 
 
-    const avgDailyExpense = expenseDays > 0 ? (monthExpense / expenseDays).toFixed(2) : 0;
-    document.getElementById('monthExpense').textContent = monthExpense.toFixed(2);
-    document.getElementById('avgDailyExpense').textContent = avgDailyExpense;
+    const avgDailyExpense = expenseDays > 0 ? (monthExpense / expenseDays).toFixed(2) : 0; 
+    document.getElementById('monthExpense').textContent = monthExpense.toFixed(2); 
+    document.getElementById('avgDailyExpense').textContent = avgDailyExpense; 
 
-    const categoryList = document.getElementById('expenseCategories');
-    categoryList.innerHTML = '';
-    if (Object.keys(categoryStats).length > 0) {
-        Object.keys(categoryStats).forEach(category => {
-            const stats = categoryStats[category];
-            if (stats.expense > 0 || stats.income > 0) {
-                const li = document.createElement('li');
-                let text = `${category}: `;
-                if (stats.expense > 0) {
-                    text += `${stats.expense.toFixed(2)}元 (支出)`;
-                }
-                if (stats.income > 0) {
-                    if (stats.expense > 0) text += ', ';
-                    text += `${stats.income.toFixed(2)}元 (收入)`;
-                }
-                li.textContent = text;
-                categoryList.appendChild(li);
-            }
-        });
-    } else {
-        const li = document.createElement('li');
-        li.textContent = '暂无财务记录';
-        categoryList.appendChild(li);
-    }
-}
+    const categoryList = document.getElementById('expenseCategories'); 
+    categoryList.innerHTML = ''; 
+    if (Object.keys(categoryStats).length > 0) { 
+        Object.keys(categoryStats).forEach(category => { 
+            const stats = categoryStats[category]; 
+            if (stats.expense > 0 || stats.income > 0) { 
+                const li = document.createElement('li'); 
+                let text = `${category}: `; 
+                if (stats.expense > 0) { 
+                    text += `${stats.expense.toFixed(2)}元 (支出)`; 
+                } 
+                if (stats.income > 0) { 
+                    if (stats.expense > 0) text += ', '; 
+                    text += `${stats.income.toFixed(2)}元 (收入)`; 
+                } 
+                li.textContent = text; 
+                categoryList.appendChild(li); 
+            } 
+        }); 
+    } else { 
+        const li = document.createElement('li'); 
+        li.textContent = '暂无财务记录'; 
+        categoryList.appendChild(li); 
+    } 
+} 
 
 function updateEntertainmentReview() { 
     const entertainmentData = JSON.parse(localStorage.getItem(STORAGE_KEYS.ENTERTAINMENT) || '{}'); 
@@ -2441,3 +2451,5 @@ function updateEntertainmentReview() {
         entertainmentList.appendChild(li); 
     } 
 }
+
+// 文件结束
