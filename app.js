@@ -991,9 +991,12 @@ function updateOverviewFromTemp() {
         }
     }
     // ========== 修改结束 ==========
-    document.getElementById('expenseOverview').textContent = `${todayExpense.toFixed(2)}元`; 
-} 
-
+    // ===== 修复：添加空值检查 =====
+    const expenseOverviewEl = document.getElementById('expenseOverview');
+    if (expenseOverviewEl) {
+        expenseOverviewEl.textContent = `${todayExpense.toFixed(2)}元`;
+    }
+    // ===== 修复结束 =====
 function archiveToday() { 
     if (!confirm('确认要归档今日的记录吗？\\n归档后今日数据将永久保存，不可修改哦！')) { 
         return; 
