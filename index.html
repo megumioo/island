@@ -754,46 +754,105 @@
 </button> 
 </div> 
 <div class="block-content" id="财务记账-content"> 
-<div class="form-group"> 
-<div class="form-row"> 
-<div class="form-column"> 
-<label for="financeType">类型</label> 
-<select id="financeType"> 
-<option value="支出">支出</option> 
-<option value="收入">收入</option> 
-</select> 
-</div> 
-<div class="form-column"> 
-<label for="financeCategory">分类</label> 
-<select id="financeCategory"> 
-<option value="正餐">正餐</option> 
-<option value="零食奶茶宵夜">零食奶茶宵夜</option> 
-<option value="日用">日用</option> 
-<option value="服饰">服饰</option> 
-<option value="游戏">游戏</option> 
-<option value="兴趣爱好">兴趣爱好</option> 
-<option value="礼物">礼物</option> 
-</select> 
-</div> 
-</div> 
-<div class="form-row"> 
-<div class="form-column"> 
-<label for="financeAmount">金额 (元)</label> 
-<input type="number" id="financeAmount" min="0" step="0.01" placeholder="例如: 25.50"> 
-</div> 
-<div class="form-column"> 
-<label for="financeDate">日期</label> 
-<input type="date" id="financeDate"> 
-</div> 
-</div> 
-<div class="form-column"> 
-<label for="financeDescription">描述</label> 
-<textarea id="financeDescription" placeholder="交易描述..." rows="2"></textarea> 
-</div> 
-</div> 
-<button class="save-btn" onclick="saveFinance()"> 
-<i class="fas fa-plus-circle"></i> 暂时保存 
-</button> 
+<div class="form-group">
+      <div class="finance-board">
+        <!-- 收入栏 -->
+        <div class="finance-column income-column">
+          <label class="finance-column-title"><i class="fas fa-arrow-down" style="color:#4CAF50;"></i> 收入记录</label>
+          <div id="incomeItems">
+            <div class="finance-item income-item">
+              <div class="item-number">1</div>
+              <div class="finance-item-content">
+                <div class="form-row">
+                  <div class="form-column">
+                    <input type="number" class="finance-amount" placeholder="金额 (元)" min="0" step="0.01">
+                  </div>
+                  <div class="form-column">
+                    <select class="finance-category">
+                      <option value="工资">工资</option>
+                      <option value="兼职">兼职</option>
+                      <option value="理财收益">理财收益</option>
+                      <option value="礼物">礼物</option>
+                      <option value="其他收入">其他收入</option>
+                    </select>
+                  </div>
+                </div>
+                <input type="text" class="finance-description" placeholder="收入描述...">
+                <input type="date" class="finance-date">
+                <div class="finance-item-actions">
+                  <button class="delete-finance-item" onclick="deleteFinanceItem(this, 'income')" title="删除此项">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <button class="add-finance-item" onclick="addFinanceItem('income')">
+            <i class="fas fa-plus"></i> 添加收入项
+          </button>
+        </div>
+
+        <!-- 支出栏 -->
+        <div class="finance-column expense-column">
+          <label class="finance-column-title"><i class="fas fa-arrow-up" style="color:#F44336;"></i> 支出记录</label>
+          <div id="expenseItems">
+            <div class="finance-item expense-item">
+              <div class="item-number">1</div>
+              <div class="finance-item-content">
+                <div class="form-row">
+                  <div class="form-column">
+                    <input type="number" class="finance-amount" placeholder="金额 (元)" min="0" step="0.01">
+                  </div>
+                  <div class="form-column">
+                    <select class="finance-category">
+                      <option value="正餐">正餐</option>
+                      <option value="零食奶茶宵夜">零食奶茶宵夜</option>
+                      <option value="日用">日用</option>
+                      <option value="服饰">服饰</option>
+                      <option value="游戏">游戏</option>
+                      <option value="兴趣爱好">兴趣爱好</option>
+                      <option value="礼物">礼物</option>
+                      <option value="交通">交通</option>
+                      <option value="医疗">医疗</option>
+                      <option value="其他支出">其他支出</option>
+                    </select>
+                  </div>
+                </div>
+                <input type="text" class="finance-description" placeholder="支出描述...">
+                <input type="date" class="finance-date">
+                <div class="finance-item-actions">
+                  <button class="delete-finance-item" onclick="deleteFinanceItem(this, 'expense')" title="删除此项">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <button class="add-finance-item" onclick="addFinanceItem('expense')">
+            <i class="fas fa-plus"></i> 添加支出项
+          </button>
+        </div>
+      </div>
+      
+      <!-- 今日财务汇总 -->
+      <div class="finance-summary">
+        <div class="summary-item">
+          <span class="summary-label">今日收入</span>
+          <span class="summary-value income-value" id="todayIncomeTotal">0.00</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-label">今日支出</span>
+          <span class="summary-value expense-value" id="todayExpenseTotal">0.00</span>
+        </div>
+        <div class="summary-item">
+          <span class="summary-label">今日结余</span>
+          <span class="summary-value balance-value" id="todayBalance">0.00</span>
+        </div>
+      </div>
+    </div>
+    <button class="save-btn" onclick="saveFinance()">
+      <i class="fas fa-save"></i> 暂时保存
+    </button> 
 </div> 
 </div> 
 
