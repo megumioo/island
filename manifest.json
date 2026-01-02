@@ -1,13 +1,27 @@
 {
   "name": "小航小刀小岛",
   "short_name": "island",
-  "description": "个人生活管理小岛 - 记录工作、学习、健康、财务和娱乐",
-  "start_url": "./index.html",
-  "scope": "./",
+  "description": "航崽和小刀",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#4FC3F7",
-  "theme_color": "#4FC3F7",
-  "lang": "zh-CN",
-  "icons": []
+  "theme_color": "#A3D9FF",
+  "background_color": "#F8F9FF",
+  "icons": [
+    {
+      "src": "icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "lifestyle"],
+  "lang": "zh-CN"
 }

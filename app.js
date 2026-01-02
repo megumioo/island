@@ -1,4 +1,80 @@
-// ==================== 新增：GitHub 同步管理器 ====================
+/* ===================================
+   小航小刀小岛 - 应用逻辑文件
+   功能：个人生活记录管理
+   版本：1.0.0
+   =================================== */
+// ==================== 调试信息 ====================
+console.log('🏝️ 小航小刀小岛 - 应用启动');
+console.log('当前URL:', window.location.href);
+console.log('协议:', window.location.protocol);
+console.log('主机:', window.location.hostname);
+console.log('Service Worker 支持:', 'serviceWorker' in navigator);
+
+// 检查图标文件
+const iconFiles = ['icons/favicon.ico', 'icons/icon-192x192.png', 'icons/icon-512x512.png'];
+iconFiles.forEach(icon => {
+    const img = new Image();
+    img.onload = () => console.log(`✅ ${icon} 加载成功`);
+    img.onerror = () => console.log(`❌ ${icon} 加载失败`);
+    img.src = icon;
+});
+
+// 检查manifest
+fetch('manifest.json')
+    .then(response => {
+        if (response.ok) {
+            console.log('✅ manifest.json 可访问');
+            return response.json();
+        } else {
+            throw new Error(`HTTP ${response.status}`);
+        }
+    })
+    .then(manifest => {
+        console.log('✅ manifest.json 解析成功');
+        console.log('应用名称:', manifest.name);
+        console.log('图标数量:', manifest.icons?.length || 0);
+    })
+    .catch(error => {
+        console.log('❌ manifest.json 错误:', error.message);
+    });
+// ==================== 数据存储键定义 ====================
+const STORAGE_KEYS = {
+    SLEEP: 'sleepData',
+    BREAKFAST: 'breakfastData',
+    WORK: 'workData',
+    HOUSEWORK: 'houseworkData',
+    STUDY: 'studyData',
+    LUNCH: 'lunchData',
+    NAP: 'napData',
+    EXERCISE: 'exerciseData',
+    DINNER: 'dinnerData',
+    GAME: 'gameData',
+    ENTERTAINMENT: 'entertainmentData',
+    FINANCE: 'financeData',
+    SUPPLEMENTS: 'supplementData',
+    BODYCARE: 'bodycareData',
+    ISLAND_INTERACTIONS: 'islandInteractions',
+    IMPORTANT_DATES: 'importantDates'
+};
+
+// ==================== 全局变量 ====================
+let currentDate = new Date();
+let currentYear = currentDate.getFullYear();
+let currentMonth = currentDate.getMonth();
+let today = new Date();
+let todayStr = formatDate(today);
+let selectedDate = todayStr;
+let islandInteractions = {};
+let importantDates = {};
+let todoItemCount = 1;
+let doneItemCount = 1;
+let incomeItemCount = 1;
+let expenseItemCount = 1;
+
+// ==================== 自动归档定时器 ====================
+let archiveTimer = null;
+
+// ==================== GitHub同步管理器 ====================
 const githubSyncManager = {
     accessToken: null,
     gistId: null,
@@ -83,11 +159,7 @@ const githubSyncManager = {
 
     calculateRecordCount() {
         let count = 0;
-        const storageKeys = [
-            'sleepData', 'breakfastData', 'workData', 'houseworkData',
-            'lunchData', 'napData', 'dinnerData', 'studyData',
-            'exerciseData', 'gameData', 'entertainmentData', 'financeData'
-        ];
+        const storageKeys = Object.keys(STORAGE_KEYS).map(key => STORAGE_KEYS[key]);
 
         storageKeys.forEach(key => {
             const data = localStorage.getItem(key);
@@ -197,459 +269,94 @@ const githubSyncManager = {
     }
 };
 
-// ==================== 新增：GitHub 同步 UI 控制函数 ====================
-function openGitHubSyncPanel() {
-    const panel = document.getElementById('githubSyncPanel');
-    const overlay = document.getElementById('syncOverlay');
-    panel.style.display = 'block';
-    overlay.style.display = 'block';
-    githubSyncManager.updateUI();
-}
-
-function closeGitHubSyncPanel() {
-    const panel = document.getElementById('githubSyncPanel');
-    const overlay = document.getElementById('syncOverlay');
-    panel.style.display = 'none';
-    overlay.style.display = 'none';
-    hideSyncStatus();
-}
-
-function openPATModal() {
-    document.getElementById('patConfigForm').style.display = 'block';
-}
-
-function closePATModal() {
-    document.getElementById('patConfigForm').style.display = 'none';
-}
-
-async function connectWithPAT() {
-    const pat = document.getElementById('githubPAT').value.trim();
-    const description = document.getElementById('gistDescription').value.trim() || 'island sync data';
-
-    if (!pat) {
-        alert('请输入 GitHub Personal Access Token');
-        return;
-    }
-
-    if (!pat.startsWith('ghp_') && !pat.startsWith('github_pat_')) {
-        if (!confirm('这个看起来不像有效的 PAT。请确认您输入的是正确的 Personal Access Token。\n\n是否继续？')) {
-            return;
-        }
-    }
-
-    showSyncStatus('正在验证 PAT...');
-
-    try {
-        githubSyncManager.accessToken = pat;
-
-        const userData = await githubSyncManager.testConnection();
-
-        showSyncStatus('正在设置 Gist...');
-        updateProgress(30);
-
-        await githubSyncManager.findOrCreateGist(description);
-
-        updateProgress(80);
-        showSyncStatus('正在保存配置...');
-
-        githubSyncManager.saveConfig();
-
-        updateProgress(100);
-        showSyncStatus('连接成功！', 'success');
-
-        setTimeout(() => {
-            hideSyncStatus();
-            githubSyncManager.updateUI();
-            closePATModal();
-            document.getElementById('githubPAT').value = '';
-            document.getElementById('gistDescription').value = '';
-        }, 1500);
-
-    } catch (error) {
-        showSyncStatus(`连接失败: ${error.message}`, 'error');
-        githubSyncManager.clearConfig();
-    }
-}
-
-function manualSyncConfig() {
-    document.getElementById('syncConnected').style.display = 'none';
-    document.getElementById('syncManualConfig').style.display = 'block';
-
-    document.getElementById('manualUsername').value = githubSyncManager.username || '';
-    document.getElementById('manualGistId').value = githubSyncManager.gistId || '';
-}
-
-function showConnectedView() {
-    document.getElementById('syncManualConfig').style.display = 'none';
-    document.getElementById('syncConnected').style.display = 'block';
-}
-
-async function saveManualConfig() {
-    const username = document.getElementById('manualUsername').value.trim();
-    const gistId = document.getElementById('manualGistId').value.trim();
-
-    if (!username) {
-        alert('请输入 GitHub 用户名');
-        return;
-    }
-
-    githubSyncManager.username = username;
-    if (gistId) githubSyncManager.gistId = gistId;
-
-    githubSyncManager.saveConfig();
-    githubSyncManager.updateUI();
-    showNotification('手动配置已保存');
-}
-
-async function syncToGitHub(action) {
-    if (!githubSyncManager.isConnected()) {
-        alert('请先连接 GitHub 账号');
-        return;
-    }
-
-    showSyncStatus(action === 'upload' ? '正在准备上传数据...' : '正在下载数据...');
-
-    try {
-        if (action === 'upload') {
-            await uploadData();
-        } else {
-            await downloadData();
-        }
-    } catch (error) {
-        showSyncStatus(`${action === 'upload' ? '上传' : '下载'}失败: ${error.message}`, 'error');
-    }
-}
-
-async function uploadData() {
-    updateProgress(20);
-    showSyncStatus('正在收集数据...');
-
-    const allData = {};
-    const storageKeys = Object.keys(localStorage);
-
-    storageKeys.forEach(key => {
-        if (!key.includes('github_') && !key.includes('_temp')) {
-            try {
-                const value = localStorage.getItem(key);
-                if (value) {
-                    allData[key] = JSON.parse(value);
-                }
-            } catch (e) {
-                console.warn(`无法解析 ${key}:`, e);
-            }
-        }
-    });
-
-    updateProgress(40);
-    showSyncStatus('正在加密数据...');
-
-    const encryptedData = btoa(JSON.stringify(allData));
-
-    updateProgress(60);
-    showSyncStatus('正在上传到 GitHub...');
-
-    const response = await fetch(`https://api.github.com/gists/${githubSyncManager.gistId}`, {
-        method: 'PATCH',
-        headers: {
-            'Authorization': `token ${githubSyncManager.accessToken}`,
-            'Accept': 'application/vnd.github.v3+json',
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            description: `island sync data - ${new Date().toLocaleString('zh-CN')}`,
-            files: {
-                'island-data.json': {
-                    content: encryptedData
-                }
-            }
-        })
-    });
-
-    if (!response.ok) {
-        throw new Error(`上传失败: ${response.status}`);
-    }
-
-    updateProgress(100);
-    githubSyncManager.lastSync = new Date().toISOString();
-    githubSyncManager.saveConfig();
-
-    showSyncStatus('上传成功！', 'success');
-    showNotification('✅ 数据已备份到 GitHub！');
-
-    setTimeout(() => {
-        hideSyncStatus();
-        githubSyncManager.updateUI();
-    }, 1500);
-}
-
-async function downloadData() {
-    if (!confirm('从 GitHub 下载数据将覆盖本地数据，是否继续？')) {
-        return;
-    }
-
-    updateProgress(20);
-    showSyncStatus('正在从 GitHub 获取数据...');
-
-    const response = await fetch(`https://api.github.com/gists/${githubSyncManager.gistId}`, {
-        headers: {
-            'Authorization': `token ${githubSyncManager.accessToken}`,
-            'Accept': 'application/vnd.github.v3+json'
-        }
-    });
-
-    if (!response.ok) {
-        throw new Error(`下载失败: ${response.status}`);
-    }
-
-    const gistData = await response.json();
-    const encryptedContent = gistData.files['island-data.json'].content;
-
-    updateProgress(60);
-    showSyncStatus('正在解密数据...');
-
-    try {
-        const decryptedData = JSON.parse(atob(encryptedContent));
-
-        updateProgress(80);
-        showSyncStatus('正在写入本地存储...');
-
-        Object.keys(decryptedData).forEach(key => {
-            localStorage.setItem(key, JSON.stringify(decryptedData[key]));
-        });
-
-        updateProgress(100);
-        githubSyncManager.lastSync = new Date().toISOString();
-        githubSyncManager.saveConfig();
-
-        showSyncStatus('下载成功！', 'success');
-        showNotification('✅ 已从 GitHub 恢复数据！');
-
-        setTimeout(() => {
-            hideSyncStatus();
-            githubSyncManager.updateUI();
-            if (typeof loadAllData === 'function') {
-                loadAllData();
-            }
-            location.reload();
-        }, 1500);
-
-    } catch (error) {
-        throw new Error('数据解密失败');
-    }
-}
-
-function disconnectGitHub() {
-    if (confirm('确定要断开 GitHub 连接吗？\n这将清除所有同步配置。')) {
-        githubSyncManager.clearConfig();
-        githubSyncManager.updateUI();
-        showNotification('已断开 GitHub 连接');
-    }
-}
-
-function showSyncStatus(message, type = 'loading') {
-    const statusEl = document.getElementById('syncStatus');
-    const statusText = document.getElementById('statusText');
-
-    statusEl.style.display = 'block';
-    statusText.textContent = message;
-
-    const spinner = statusEl.querySelector('.spinner');
-    if (type === 'success') {
-        statusText.style.color = '#4CAF50';
-        if (spinner) spinner.style.display = 'none';
-    } else if (type === 'error') {
-        statusText.style.color = '#F44336';
-        if (spinner) spinner.style.display = 'none';
-    } else {
-        statusText.style.color = '#24292e';
-        if (spinner) spinner.style.display = 'block';
-    }
-}
-
-function hideSyncStatus() {
-    document.getElementById('syncStatus').style.display = 'none';
-    updateProgress(0);
-}
-
-function updateProgress(percent) {
-    const progressFill = document.querySelector('.progress-fill');
-    const progressText = document.getElementById('progressText');
-
-    if (progressFill) {
-        progressFill.style.width = percent + '%';
-    }
-    if (progressText) {
-        progressText.textContent = percent + '%';
-    }
-}
-// ==================== 新增结束 ====================
-
-// 原有的应用数据模型
-const STORAGE_KEYS = {
-    SLEEP: 'sleepData',
-    BREAKFAST: 'breakfastData',
-    SUPPLEMENTS: 'supplementData',
-    WORK: 'workData',
-    HOUSEWORK: 'houseworkData',
-    LUNCH: 'lunchData',
-    NAP: 'napData',
-    DINNER: 'dinnerData',
-    VITAMIN: 'vitaminData',
-    STUDY: 'studyData',
-    EXERCISE: 'exerciseData',
-    GAME: 'gameData',
-    ENTERTAINMENT: 'entertainmentData',
-    MAGNESIUM: 'magnesiumData',
-    BODYCARE: 'bodycareData',
-    FINANCE: 'financeData',
-    ISLAND_INTERACTIONS: 'islandInteractions',
-    IMPORTANT_DATES: 'importantDates'
-};
-
-const ISLAND_RESIDENTS = [
-    '威亚', '丽婷', '茉莉', '樱桃', '贾洛斯', '草莓', '杰西卡', '大姐头', '小影', '哈姆'
-];
-
-const INTERACTION_TYPES = ['打招呼', '送礼', '收礼', '收明信片'];
-
-const IMPORTANT_DATE_TYPES = {
-    'anniversary': { name: '纪念日', color: 'important-red', class: 'important-anniversary' },
-    'deadline': { name: '截止日期', color: 'important-blue', class: 'important-deadline' },
-    'event': { name: '重要事件', color: 'important-green', class: 'important-event' },
-    'reminder': { name: '提醒事项', color: 'important-purple', class: 'important-reminder' },
-    'birthday': { name: '生日', color: 'important-pink', class: 'important-birthday' },
-    'other': { name: '其他', color: 'important-orange', class: 'important-other' }
-};
-
-let currentDate = new Date();
-let currentYear = currentDate.getFullYear();
-let currentMonth = currentDate.getMonth();
-let today = new Date();
-let todayStr = formatDate(today);
-let selectedDate = todayStr;
-let islandInteractions = {};
-let importantDates = {};
-let todoItemCount = 1;
-let doneItemCount = 1;
-
-// ========== 新增：财务多条目变量 ==========
-let incomeItemCount = 1;
-let expenseItemCount = 1;
-// ========== 新增结束 ==========
-
+// ==================== 页面初始化 ====================
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('🏝️ 小航小刀小岛 - 应用启动');
+    
+    // 初始化日期时间显示
     updateDateTime();
     setInterval(updateDateTime, 1000);
-    initIslandResidentsTable();
+    
+    // 初始化游戏类型切换
     initGameTypeToggle();
+    
+    // 初始化日历
     initCalendar();
+    
+    // 加载今日数据
     loadTodayData();
+    
+    // 初始化按钮事件
     initButtonEvents();
+    
+    // 更新复盘数据
     updateReviewData();
-    loadIslandInteractions();
+    
+    // 加载重要日期
     loadImportantDates();
+    
+    // 更新概览数据
     updateOverviewFromTemp();
-    // document.getElementById('financeDate').value = todayStr; // 这行已删除，因为financeDate不存在于新设计中
+    
+    // 设置重要日期输入框为今日
     document.getElementById('importantDate').value = todayStr;
+    
+    // 加载工作数据
     loadWorkData();
-
-    // ========== 新增：初始化财务数据 ==========
+    
+    // 加载财务数据
     loadFinanceData();
-    // ========== 新增结束 ==========
-
+    
+    // 初始化导航
     initNavigation();
+    
+    // 初始化概览面板
     initOverviewPanel();
+    
+    // 初始化导航侧边栏
     initNavSidebar();
+    
+    // 初始化折叠面板
     initCollapsibleBlocks();
+    
+    // 初始化家务积分
     initHouseworkScore();
-
+    
+    // 初始化GitHub同步
     githubSyncManager.init();
-
-    if (window.navigator.standalone) {
-        const currentUrl = window.location.href;
-        const correctUrl = 'https://yourdomain.com/island/index.html';
-        if (currentUrl === 'https://yourdomain.com/') {
-            window.location.replace(correctUrl);
-        }
+    
+    // 初始化自动归档
+    initAutoArchive();
+    
+// PWA Service Worker 注册
+if ('serviceWorker' in navigator) {
+    // 检查是否在支持的环境下运行（localhost 或 HTTPS）
+    const isLocalhost = window.location.hostname === 'localhost' || 
+                       window.location.hostname === '127.0.0.1';
+    const isSecure = window.location.protocol === 'https:';
+    
+    if (isLocalhost || isSecure) {
+        navigator.serviceWorker.register('service-worker.js')
+            .then(registration => {
+                console.log('ServiceWorker 注册成功');
+                console.log('作用域:', registration.scope);
+            })
+            .catch(error => {
+                console.log('ServiceWorker 注册失败:', error);
+            });
+    } else if (window.location.protocol === 'file:') {
+        console.log('⚠️ Service Worker 只能在 localhost 或 HTTPS 环境下运行');
+        console.log('当前使用 file:// 协议，请使用本地服务器：python -m http.server 8000');
+        console.log('或者访问：http://localhost:8000');
     }
-
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('service-worker.js')
-                .then(registration => {
-                    console.log('ServiceWorker注册成功');
-                    registration.addEventListener('updatefound', () => {
-                        const newWorker = registration.installing;
-                        console.log('发现新的Service Worker版本');
-                        newWorker.addEventListener('statechange', () => {
-                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                showNotification('✨ island有更新可用，请刷新页面获取新功能！');
-                            }
-                        });
-                    });
-                })
-                .catch(error => {
-                    console.log('ServiceWorker注册失败: ', error);
-                });
-        });
-    }
-
-    let deferredPrompt;
-    window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault();
-        deferredPrompt = e;
-        console.log('可以显示安装提示了');
-    });
+}
 });
 
-function initCollapsibleBlocks() {
-    const allBlocks = document.querySelectorAll('.collapsible-block');
-    allBlocks.forEach(block => {
-        const blockId = block.id.replace('-block', '');
-        const content = document.getElementById(blockId + '-content');
-        const toggle = block.querySelector('.block-toggle i');
-        if (content) {
-            content.classList.remove('expanded');
-            toggle.classList.remove('fa-chevron-up');
-            toggle.classList.add('fa-chevron-down');
-        }
-    });
-}
+// ==================== 时间管理函数 ====================
 
-function toggleBlock(blockName) {
-    const content = document.getElementById(blockName + '-content');
-    const toggle = document.querySelector(`#${blockName}-block .block-toggle i`);
-    if (content) {
-        content.classList.toggle('expanded');
-        if (content.classList.contains('expanded')) {
-            toggle.classList.remove('fa-chevron-down');
-            toggle.classList.add('fa-chevron-up');
-        } else {
-            toggle.classList.remove('fa-chevron-up');
-            toggle.classList.add('fa-chevron-down');
-        }
-    }
-}
-
-function initHouseworkScore() {
-    const checkboxes = document.querySelectorAll('#家务记录-content input[type="checkbox"]');
-    checkboxes.forEach(checkbox => {
-        checkbox.addEventListener('change', updateHouseworkScore);
-    });
-    updateHouseworkScore();
-}
-
-function updateHouseworkScore() {
-    let score = 0;
-    const checkboxes = document.querySelectorAll('#家务记录-content input[type="checkbox"]');
-    checkboxes.forEach(checkbox => {
-        if (checkbox.checked) {
-            score++;
-        }
-    });
-    document.getElementById('houseworkScore').value = score;
-}
-
+/**
+ * 更新日期时间显示
+ */
 function updateDateTime() {
     const now = new Date();
     const dateTimeStr = now.toLocaleString('zh-CN', {
@@ -662,246 +369,16 @@ function updateDateTime() {
         second: '2-digit',
         hour12: false
     });
-    document.getElementById('currentDateTime').textContent = dateTimeStr;
-}
-
-function initOverviewPanel() {
-    const overviewToggle = document.getElementById('overviewToggle');
-    const overviewPanel = document.getElementById('overviewPanel');
-    overviewToggle.addEventListener('click', function() {
-        overviewPanel.classList.toggle('collapsed');
-        overviewPanel.classList.toggle('expanded');
-    });
-}
-
-function initNavSidebar() {
-    const navToggle = document.getElementById('navToggle');
-    const navSidebar = document.getElementById('navSidebar');
-    const closeNav = document.getElementById('closeNav');
-    const body = document.body;
-    navToggle.addEventListener('click', function() {
-        navSidebar.classList.add('active');
-        body.classList.add('nav-expanded');
-    });
-    closeNav.addEventListener('click', function() {
-        navSidebar.classList.remove('active');
-        body.classList.remove('nav-expanded');
-    });
-
-    const navMainItems = document.querySelectorAll('.nav-menu-main');
-    navMainItems.forEach(item => {
-        if (!item.id) {
-            item.addEventListener('click', function() {
-                const arrow = this.querySelector('.nav-menu-arrow');
-                if (arrow) {
-                    arrow.classList.toggle('rotated');
-                    const submenu = this.parentElement.querySelector('.nav-submenu');
-                    if (submenu) {
-                        submenu.classList.toggle('expanded');
-                    }
-                }
-                navMainItems.forEach(i => {
-                    if (!i.id) i.classList.remove('active');
-                });
-                this.classList.add('active');
-                const section = this.dataset.section;
-                if (section) {
-                    switchSection(section);
-                }
-                const targetId = this.dataset.target;
-                if (targetId) {
-                    navigateToBlock(targetId);
-                }
-            });
-        }
-    });
-
-    const navSubItems = document.querySelectorAll('.nav-submenu-item');
-    navSubItems.forEach(item => {
-        console.log("navSubItems", navSubItems)
-        item.addEventListener('click', function() {
-            const targetId = this.dataset.target;
-            navigateToBlock(targetId);
-            if (window.innerWidth <= 768) {
-                navSidebar.classList.remove('active');
-                body.classList.remove('nav-expanded');
-            }
-        });
-    });
-
-    document.getElementById('navReviewToggle').addEventListener('click', function() {
-        document.getElementById('reviewPanel').classList.add('active');
-        navSidebar.classList.remove('active');
-        body.classList.remove('nav-expanded');
-    });
-
-    document.getElementById('navTodayOverview').addEventListener('click', function() {
-        const overviewPanel = document.getElementById('overviewPanel');
-        overviewPanel.classList.remove('collapsed');
-        overviewPanel.classList.add('expanded');
-        navSidebar.classList.remove('active');
-        body.classList.remove('nav-expanded');
-    });
-}
-
-function navigateToBlock(blockId) {
-    const targetElement = document.getElementById(blockId);
-    if (targetElement) {
-        if (blockId === 'calendarSection') {
-            switchSection('calendar');
-        } else if (blockId === 'importantDatesPanel') {
-            switchSection('calendar');
-            setTimeout(() => {
-                const panel = document.getElementById('importantDatesPanel');
-                panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 100);
-        } else {
-            // 确保切换到时间轴 section
-            switchSection('timeline');
-            
-            const blockName = targetElement.id.replace('-block', '');
-            const content = document.getElementById(blockName + '-content');
-            if (content && !content.classList.contains('expanded')) {
-                toggleBlock(blockName);
-            }
-            setTimeout(() => {
-                targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                targetElement.style.boxShadow = '0 0 0 3px rgba(255, 179, 77, 0.3)';
-                targetElement.style.transition = 'box-shadow 0.5s ease';
-                setTimeout(() => {
-                    targetElement.style.boxShadow = '';
-                }, 1500);
-            }, 100);
-        }
+    
+    const dateTimeElement = document.getElementById('currentDateTime');
+    if (dateTimeElement) {
+        dateTimeElement.textContent = dateTimeStr;
     }
 }
 
-function initNavigation() {
-    const navTabs = document.querySelectorAll('.nav-tab');
-    navTabs.forEach(tab => {
-        tab.addEventListener('click', function() {
-            const section = this.dataset.section;
-            switchSection(section);
-            navTabs.forEach(t => t.classList.remove('active'));
-            this.classList.add('active');
-            const bottomNavItems = document.querySelectorAll('.bottom-nav-item');
-            bottomNavItems.forEach(item => {
-                item.classList.remove('active');
-                if (item.dataset.section === section) {
-                    item.classList.add('active');
-                }
-            });
-        });
-    });
-
-    const bottomNavItems = document.querySelectorAll('.bottom-nav-item');
-    bottomNavItems.forEach(item => {
-        item.addEventListener('click', function() {
-            const section = this.dataset.section;
-            if (section === 'timelineSection' || section === 'calendar') {
-                switchSection(section);
-                bottomNavItems.forEach(i => i.classList.remove('active'));
-                this.classList.add('active');
-                navTabs.forEach(tab => {
-                    tab.classList.remove('active');
-                    if (tab.dataset.section === section) {
-                        tab.classList.add('active');
-                    }
-                });
-            }
-        });
-    });
-
-    document.getElementById('bottomReviewToggle').addEventListener('click', function() {
-        document.getElementById('reviewPanel').classList.add('active');
-    });
-}
-
-function initButtonEvents() {
-    document.getElementById('reviewToggle').addEventListener('click', () => {
-        document.getElementById('reviewPanel').classList.add('active');
-    });
-
-    document.getElementById('closeReview').addEventListener('click', () => {
-        document.getElementById('reviewPanel').classList.remove('active');
-    });
-
-    document.getElementById('prevMonth').addEventListener('click', () => {
-        currentMonth--;
-        if (currentMonth < 0) {
-            currentMonth = 11;
-            currentYear--;
-        }
-        renderCalendar();
-    });
-
-    document.getElementById('nextMonth').addEventListener('click', () => {
-        currentMonth++;
-        if (currentMonth > 11) {
-            currentMonth = 0;
-            currentYear++;
-        }
-        renderCalendar();
-    });
-
-    document.getElementById('gameType').addEventListener('change', function() {
-        const gameType = this.value;
-        document.getElementById('generalGame').style.display = gameType === '通用游戏' ? 'block' : 'none';
-        document.getElementById('animalCrossing').style.display = gameType === '动物森友会' ? 'block' : 'none';
-    });
-
-    document.getElementById('toggleAddImportantForm').addEventListener('click', function() {
-        const form = document.getElementById('addImportantForm');
-        if (form.style.display === 'none') {
-            form.style.display = 'block';
-            this.innerHTML = '<i class="fas fa-minus"></i> 取消添加';
-        } else {
-            form.style.display = 'none';
-            this.innerHTML = '<i class="fas fa-plus"></i> 添加重要日期';
-        }
-    });
-
-    document.getElementById('cancelAddImportantForm').addEventListener('click', function() {
-        document.getElementById('addImportantForm').style.display = 'none';
-        document.getElementById('toggleAddImportantForm').innerHTML = '<i class="fas fa-plus"></i> 添加重要日期';
-    });
-}
-
-function switchSection(section) {
-    // 更新section显示状态
-    const timelineSection = document.getElementById('timelineSection');
-    const calendarSection = document.getElementById('calendarSection');
-
-    if (timelineSection) {
-        timelineSection.classList.toggle('active', section === 'timeline');
-    }
-    if (calendarSection) {
-        calendarSection.classList.toggle('active', section === 'calendar');
-    }
-
-    if (section === 'calendar') {
-        renderCalendar();
-    }
-
-    // 更新顶部导航标签
-    const navTabs = document.querySelectorAll('.nav-tab');
-    navTabs.forEach(tab => {
-        tab.classList.remove('active');
-        if (tab.dataset.section === section) {
-            tab.classList.add('active');
-        }
-    });
-
-    // 更新底部导航
-    const bottomNavItems = document.querySelectorAll('.bottom-nav-item');
-    bottomNavItems.forEach(item => {
-        item.classList.remove('active');
-        if (item.dataset.section === section) {
-            item.classList.add('active');
-        }
-    });
-}
-
+/**
+ * 格式化日期为 YYYY-MM-DD
+ */
 function formatDate(date) {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -909,136 +386,97 @@ function formatDate(date) {
     return `${year}-${month}-${day}`;
 }
 
-function showNotification(message) {
-    const notification = document.getElementById('notification');
-    document.getElementById('notificationText').textContent = message;
-    notification.style.display = 'flex';
+/**
+ * 获取时间差（毫秒）
+ */
+function getTimeUntilTarget(targetHour, targetMinute, targetSecond) {
+    const now = new Date();
+    const target = new Date(now);
+    target.setHours(targetHour, targetMinute, targetSecond, 0);
+    
+    if (now > target) {
+        target.setDate(target.getDate() + 1);
+    }
+    
+    return target.getTime() - now.getTime();
+}
+
+// ==================== 自动归档系统 ====================
+
+/**
+ * 初始化自动归档
+ */
+function initAutoArchive() {
+    console.log('🕐 初始化自动归档系统...');
+    
+    // 清除现有的定时器
+    if (archiveTimer) {
+        clearTimeout(archiveTimer);
+    }
+    
+    // 计算距离23:59:59的时间
+    const timeUntilArchive = getTimeUntilTarget(23, 59, 59);
+    
+    // 设置归档定时器
+    archiveTimer = setTimeout(() => {
+        autoArchiveToday();
+        // 归档后设置明天的定时器
+        setDailyArchiveTimer();
+    }, timeUntilArchive);
+    
+    // 归档前30分钟提醒
+    const timeUntilReminder = getTimeUntilTarget(23, 29, 59);
     setTimeout(() => {
-        notification.style.display = 'none';
-    }, 3000);
+        showNotification('⏰ 30分钟后将自动归档今日记录，请确认已保存所有数据');
+    }, timeUntilReminder);
+    
+    console.log(`🕐 自动归档已设置，将在 ${formatTime(timeUntilArchive)} 后执行`);
 }
 
-function saveData(key, data) {
-    const dateStr = formatDate(new Date());
-    const allData = JSON.parse(localStorage.getItem(key) || '{}');
-    if (!allData[dateStr]) {
-        allData[dateStr] = [];
-    }
-    allData[dateStr].push({ ...data, timestamp: new Date().toISOString() });
-    localStorage.setItem(key, JSON.stringify(allData));
-    updateOverview();
-    updateReviewData();
-    renderCalendar();
-    return true;
+/**
+ * 设置每日归档定时器
+ */
+function setDailyArchiveTimer() {
+    // 24小时后再次执行
+    const oneDayInMs = 24 * 60 * 60 * 1000;
+    
+    archiveTimer = setTimeout(() => {
+        autoArchiveToday();
+        setDailyArchiveTimer();
+    }, oneDayInMs);
 }
 
-function saveTempData(key, data) {
-    const dateStr = formatDate(new Date());
-    const allData = JSON.parse(localStorage.getItem(key + '_TEMP') || '{}');
-    if (!allData[dateStr]) {
-        allData[dateStr] = [];
-    }
-    allData[dateStr].push({ ...data, timestamp: new Date().toISOString() });
-    localStorage.setItem(key + '_TEMP', JSON.stringify(allData));
-    updateOverviewFromTemp();
-    return true;
-}
-
-function updateOverviewFromTemp() {
-    const dateStr = formatDate(new Date());
-    const workData = JSON.parse(localStorage.getItem(STORAGE_KEYS.WORK + '_TEMP') || '{}');
-    let workOverview = '0/0';
-    if (workData[dateStr] && workData[dateStr].length > 0) {
-        const latestWork = workData[dateStr][workData[dateStr].length - 1];
-        const todoCount = latestWork.todo ? latestWork.todo.length : 0;
-        const doneCount = latestWork.done ? latestWork.done.length : 0;
-        workOverview = `${doneCount}/${todoCount}`;
-    }
-    // 安全设置
-    const workOverviewEl = document.getElementById('workOverview');
-    if (workOverviewEl) {
-        workOverviewEl.textContent = workOverview;
-    }
-
-    const houseworkData = JSON.parse(localStorage.getItem(STORAGE_KEYS.HOUSEWORK + '_TEMP') || '{}');
-    let houseworkScore = 0;
-    if (houseworkData[dateStr] && houseworkData[dateStr].length > 0) {
-        const latestHousework = houseworkData[dateStr][houseworkData[dateStr].length - 1];
-        houseworkScore = latestHousework.score || 0;
-    }
-    const houseworkOverviewEl = document.getElementById('houseworkOverview');
-    if (houseworkOverviewEl) {
-        houseworkOverviewEl.textContent = `${houseworkScore}分`;
-    }
-
-    const studyData = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDY + '_TEMP') || '{}');
-    let totalStudyTime = 0;
-    if (studyData[dateStr]) {
-        studyData[dateStr].forEach(record => {
-            totalStudyTime += record.duration || 0;
-        });
-    }
-    const studyOverviewEl = document.getElementById('studyOverview');
-    if (studyOverviewEl) {
-        studyOverviewEl.textContent = `${totalStudyTime}分钟`;
-    }
-
-    const exerciseData = JSON.parse(localStorage.getItem(STORAGE_KEYS.EXERCISE + '_TEMP') || '{}');
-    let totalExerciseTime = 0;
-    if (exerciseData[dateStr]) {
-        exerciseData[dateStr].forEach(record => {
-            totalExerciseTime += record.duration || 0;
-        });
-    }
-    const exerciseOverviewEl = document.getElementById('exerciseOverview');
-    if (exerciseOverviewEl) {
-        exerciseOverviewEl.textContent = `${totalExerciseTime}分钟`;
-    }
-
-    const financeData = JSON.parse(localStorage.getItem(STORAGE_KEYS.FINANCE + '_TEMP') || '{}');
-    let todayExpense = 0;
-
-    // ========== 修改：适应新的财务数据结构 ==========
-    if (financeData[dateStr]) {
-        const data = financeData[dateStr];
-
-        // 处理支出
-        if (data.expenses && Array.isArray(data.expenses)) {
-            data.expenses.forEach(record => {
-                todayExpense += record.amount || 0;
-            });
-        }
-    }
-    // ========== 修改结束 ==========
-
-    // 安全设置
-    const expenseOverviewEl = document.getElementById('expenseOverview');
-    if (expenseOverviewEl) {
-        expenseOverviewEl.textContent = `${todayExpense.toFixed(2)}元`;
-    }
-}
-
-function archiveToday() {
-    if (!confirm('确认要归档今日的记录吗？\\n归档后今日数据将永久保存，不可修改哦！')) {
-        return;
-    }
+/**
+ * 自动归档今日数据
+ */
+function autoArchiveToday() {
+    console.log('🔄 开始自动归档今日记录...');
+    
     const dateStr = formatDate(new Date());
     let hasData = false;
+    let archivedCount = 0;
+    
+    // 归档所有临时数据
     Object.values(STORAGE_KEYS).forEach(key => {
         const tempData = JSON.parse(localStorage.getItem(key + '_TEMP') || '{}');
         if (tempData[dateStr] && tempData[dateStr].length > 0) {
             hasData = true;
+            archivedCount += tempData[dateStr].length;
+            
             const finalData = JSON.parse(localStorage.getItem(key) || '{}');
             if (!finalData[dateStr]) {
                 finalData[dateStr] = [];
             }
             finalData[dateStr] = finalData[dateStr].concat(tempData[dateStr]);
             localStorage.setItem(key, JSON.stringify(finalData));
+            
+            // 清理临时数据
             delete tempData[dateStr];
             localStorage.setItem(key + '_TEMP', JSON.stringify(tempData));
         }
     });
-
+    
+    // 归档岛民互动数据
     const islandTemp = JSON.parse(localStorage.getItem(STORAGE_KEYS.ISLAND_INTERACTIONS + '_TEMP') || '{}');
     if (islandTemp[dateStr]) {
         hasData = true;
@@ -1048,288 +486,278 @@ function archiveToday() {
         delete islandTemp[dateStr];
         localStorage.setItem(STORAGE_KEYS.ISLAND_INTERACTIONS + '_TEMP', JSON.stringify(islandTemp));
     }
-
+    
     if (hasData) {
-        showNotification('❤️ 今日记录归档成功！小航小刀又度过了一天~');
+        showNotification(`✅ 今日 ${archivedCount} 条记录已自动归档！`);
+        console.log(`✅ 自动归档完成，共归档 ${archivedCount} 条记录`);
+        
+        // 清空表单
         clearAllForms();
+        
+        // 更新数据显示
         updateReviewData();
         renderCalendar();
+        updateOverviewFromTemp();
+        
+        // 设置下一次归档提醒
+        const reminderTime = getTimeUntilTarget(23, 29, 59);
+        setTimeout(() => {
+            showNotification('⏰ 30分钟后将自动归档今日记录，请确认已保存所有数据');
+        }, reminderTime - (30 * 60 * 1000));
     } else {
-        showNotification('📝 没有可归档的临时记录哦~');
+        console.log('📝 没有可归档的临时记录');
     }
 }
 
+/**
+ * 格式化时间显示
+ */
+function formatTime(ms) {
+    const hours = Math.floor(ms / (1000 * 60 * 60));
+    const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((ms % (1000 * 60)) / 1000);
+    return `${hours}小时${minutes}分钟${seconds}秒`;
+}
+
+// ==================== 数据存储函数 ====================
+
+/**
+ * 保存数据到临时存储
+ */
+function saveTempData(key, data) {
+    const dateStr = formatDate(new Date());
+    const allData = JSON.parse(localStorage.getItem(key + '_TEMP') || '{}');
+    
+    if (!allData[dateStr]) {
+        allData[dateStr] = [];
+    }
+    
+    allData[dateStr].push({
+        ...data,
+        timestamp: new Date().toISOString()
+    });
+    
+    localStorage.setItem(key + '_TEMP', JSON.stringify(allData));
+    updateOverviewFromTemp();
+    return true;
+}
+
+/**
+ * 保存数据到永久存储
+ */
+function saveData(key, data) {
+    const dateStr = formatDate(new Date());
+    const allData = JSON.parse(localStorage.getItem(key) || '{}');
+    
+    if (!allData[dateStr]) {
+        allData[dateStr] = [];
+    }
+    
+    allData[dateStr].push({
+        ...data,
+        timestamp: new Date().toISOString()
+    });
+    
+    localStorage.setItem(key, JSON.stringify(allData));
+    updateReviewData();
+    renderCalendar();
+    return true;
+}
+
+// ==================== 表单处理函数 ====================
+
+/**
+ * 初始化折叠面板
+ */
+function initCollapsibleBlocks() {
+    const allBlocks = document.querySelectorAll('.collapsible-block');
+    allBlocks.forEach(block => {
+        const blockId = block.id.replace('-block', '');
+        const content = document.getElementById(blockId + '-content');
+        const toggle = block.querySelector('.block-toggle i');
+        
+        if (content) {
+            content.classList.remove('expanded');
+            toggle.classList.remove('fa-chevron-up');
+            toggle.classList.add('fa-chevron-down');
+        }
+    });
+}
+
+/**
+ * 切换折叠面板状态
+ */
+function toggleBlock(blockName) {
+    const content = document.getElementById(blockName + '-content');
+    const toggle = document.querySelector(`#${blockName}-block .block-toggle i`);
+    
+    if (content) {
+        content.classList.toggle('expanded');
+        if (content.classList.contains('expanded')) {
+            toggle.classList.remove('fa-chevron-down');
+            toggle.classList.add('fa-chevron-up');
+        } else {
+            toggle.classList.remove('fa-chevron-up');
+            toggle.classList.add('fa-chevron-down');
+        }
+    }
+}
+
+/**
+ * 清空所有表单
+ */
 function clearAllForms() {
+    // 清空输入框和文本域
     document.querySelectorAll('input[type="text"], input[type="number"], textarea').forEach(el => {
         el.value = '';
     });
+    
+    // 清空复选框
     document.querySelectorAll('input[type="checkbox"]').forEach(el => {
         el.checked = false;
     });
+    
+    // 重置选择器
     document.querySelectorAll('select').forEach(el => {
         el.selectedIndex = 0;
     });
+    
+    // 重置岛民互动按钮
     document.querySelectorAll('.island-btn').forEach(btn => {
         btn.classList.remove('active');
     });
+    
+    // 重置工作看板
     resetWorkBoard();
-    // document.getElementById('financeDate').value = formatDate(new Date()); // 这行已删除
+    
+    // 重置财务记账
+    resetFinanceBoard();
+    
+    // 重置家务积分
     document.getElementById('houseworkScore').value = '0';
-    initCollapsibleBlocks();
+    
+    // 更新概览
+    updateOverviewFromTemp();
 }
 
-function resetWorkBoard() {
-    const todoItems = document.getElementById('todoItems');
-    const doneItems = document.getElementById('doneItems');
-    while (todoItems.children.length > 1) {
-        todoItems.removeChild(todoItems.lastChild);
-    }
-    while (doneItems.children.length > 1) {
-        doneItems.removeChild(doneItems.lastChild);
-    }
-    const firstTodo = todoItems.querySelector('.todo-item');
-    const firstDone = doneItems.querySelector('.done-item');
-    if (firstTodo) firstTodo.value = '';
-    if (firstDone) firstDone.value = '';
-    todoItemCount = 1;
-    doneItemCount = 1;
-    updateWorkItemNumbers();
-}
+// ==================== 打卡功能 ====================
 
-function addTodoItem() {
-    const todoItems = document.getElementById('todoItems');
-    const newItem = document.createElement('div');
-    newItem.className = 'work-item';
-    newItem.innerHTML = ` 
-    <div class="item-number">${todoItemCount + 1}</div> 
-    <input type="text" class="todo-item" placeholder="待办事项..." data-index="${todoItemCount}"> 
-    `;
-    todoItems.appendChild(newItem);
-    todoItemCount++;
-    updateWorkItemNumbers();
-}
-
-function addDoneItem() {
-    const doneItems = document.getElementById('doneItems');
-    const newItem = document.createElement('div');
-    newItem.className = 'work-item';
-    newItem.innerHTML = ` 
-    <div class="item-number">${doneItemCount + 1}</div> 
-    <input type="text" class="done-item" placeholder="已完成事项..." data-index="${doneItemCount}"> 
-    `;
-    doneItems.appendChild(newItem);
-    doneItemCount++;
-    updateWorkItemNumbers();
-}
-
-function updateWorkItemNumbers() {
-    const todoItems = document.querySelectorAll('#todoItems .work-item');
-    const doneItems = document.querySelectorAll('#doneItems .work-item');
-    todoItems.forEach((item, index) => {
-        const numberDiv = item.querySelector('.item-number');
-        if (numberDiv) {
-            numberDiv.textContent = index + 1;
-        }
-        const input = item.querySelector('.todo-item');
-        if (input) {
-            input.dataset.index = index;
-        }
-    });
-    doneItems.forEach((item, index) => {
-        const numberDiv = item.querySelector('.item-number');
-        if (numberDiv) {
-            numberDiv.textContent = index + 1;
-        }
-        const input = item.querySelector('.done-item');
-        if (input) {
-            input.dataset.index = index;
-        }
-    });
-    todoItemCount = todoItems.length;
-    doneItemCount = doneItems.length;
-}
-
-function loadWorkData() {
-    const dateStr = formatDate(new Date());
-    const workData = JSON.parse(localStorage.getItem(STORAGE_KEYS.WORK + '_TEMP') || '{}');
-    if (workData[dateStr] && workData[dateStr].length > 0) {
-        const latestWork = workData[dateStr][workData[dateStr].length - 1];
-        if (latestWork.todo && Array.isArray(latestWork.todo)) {
-            const todoItems = document.getElementById('todoItems');
-            todoItems.innerHTML = '';
-            latestWork.todo.forEach((item, index) => {
-                const newItem = document.createElement('div');
-                newItem.className = 'work-item';
-                newItem.innerHTML = ` 
-                <div class="item-number">${index + 1}</div> 
-                <input type="text" class="todo-item" placeholder="待办事项..." data-index="${index}" value="${item || ''}"> 
-                `;
-                todoItems.appendChild(newItem);
-            });
-        }
-        if (latestWork.done && Array.isArray(latestWork.done)) {
-            const doneItems = document.getElementById('doneItems');
-            doneItems.innerHTML = '';
-            latestWork.done.forEach((item, index) => {
-                const newItem = document.createElement('div');
-                newItem.className = 'work-item';
-                newItem.innerHTML = ` 
-                <div class="item-number">${index + 1}</div> 
-                <input type="text" class="done-item" placeholder="已完成事项..." data-index="${index}" value="${item || ''}"> 
-                `;
-                doneItems.appendChild(newItem);
-            });
-        }
-        updateWorkItemNumbers();
+/**
+ * 保存补剂打卡
+ */
+function saveSupplements() {
+    const ironSupplement = document.getElementById('ironSupplement').checked;
+    const vitaminDK = document.getElementById('vitaminDK').checked;
+    const magnesiumSupplement = document.getElementById('magnesiumSupplement').checked;
+    
+    const data = {
+        iron: ironSupplement,
+        vitaminDK: vitaminDK,
+        magnesium: magnesiumSupplement,
+        date: formatDate(new Date())
+    };
+    
+    if (saveTempData(STORAGE_KEYS.SUPPLEMENTS, data)) {
+        showNotification('💊 补剂打卡已保存！');
     }
 }
 
-function loadTodayData() {
-    const dateStr = formatDate(new Date());
-}
-
-function initIslandResidentsTable() {
-    const tbody = document.getElementById('islandResidents');
-    tbody.innerHTML = '';
-    ISLAND_RESIDENTS.forEach(resident => {
-        const row = document.createElement('tr');
-        const nameCell = document.createElement('td');
-        nameCell.textContent = resident;
-        row.appendChild(nameCell);
-        INTERACTION_TYPES.forEach(interaction => {
-            const cell = document.createElement('td');
-            const button = document.createElement('button');
-            button.className = 'island-btn';
-            button.textContent = interaction;
-            button.dataset.resident = resident;
-            button.dataset.interaction = interaction;
-            button.addEventListener('click', function() {
-                this.classList.toggle('active');
-                saveIslandInteraction(resident, interaction, this.classList.contains('active'));
-            });
-            cell.appendChild(button);
-            row.appendChild(cell);
-        });
-        tbody.appendChild(row);
-    });
-}
-
-function saveIslandInteraction(resident, interaction, isActive) {
-    const dateStr = formatDate(new Date());
-    const tempData = JSON.parse(localStorage.getItem(STORAGE_KEYS.ISLAND_INTERACTIONS + '_TEMP') || '{}');
-    if (!tempData[dateStr]) {
-        tempData[dateStr] = {};
-    }
-    if (!tempData[dateStr][resident]) {
-        tempData[dateStr][resident] = {};
-    }
-    tempData[dateStr][resident][interaction] = isActive;
-    localStorage.setItem(STORAGE_KEYS.ISLAND_INTERACTIONS + '_TEMP', JSON.stringify(tempData));
-    if (!islandInteractions[dateStr]) {
-        islandInteractions[dateStr] = {};
-    }
-    if (!islandInteractions[dateStr][resident]) {
-        islandInteractions[dateStr][resident] = {};
-    }
-    islandInteractions[dateStr][resident][interaction] = isActive;
-}
-
-function loadIslandInteractions() {
-    const tempData = localStorage.getItem(STORAGE_KEYS.ISLAND_INTERACTIONS + '_TEMP');
-    if (tempData) {
-        islandInteractions = JSON.parse(tempData);
-    } else {
-        const data = localStorage.getItem(STORAGE_KEYS.ISLAND_INTERACTIONS);
-        if (data) {
-            islandInteractions = JSON.parse(data);
-        }
-    }
-    const dateStr = formatDate(new Date());
-    if (islandInteractions[dateStr]) {
-        ISLAND_RESIDENTS.forEach(resident => {
-            INTERACTION_TYPES.forEach(interaction => {
-                const isActive = islandInteractions[dateStr][resident] && islandInteractions[dateStr][resident][interaction];
-                const button = document.querySelector(`.island-btn[data-resident="${resident}"][data-interaction="${interaction}"]`);
-                if (button) {
-                    if (isActive) {
-                        button.classList.add('active');
-                    } else {
-                        button.classList.remove('active');
-                    }
-                }
-            });
-        });
+/**
+ * 保存护理打卡
+ */
+function saveBodyCare() {
+    const bodyScrub = document.getElementById('bodyScrub').checked;
+    const hairRemoval = document.getElementById('hairRemoval').checked;
+    const bodyLotion = document.getElementById('bodyLotion').checked;
+    
+    const data = {
+        scrub: bodyScrub,
+        hairRemoval: hairRemoval,
+        lotion: bodyLotion,
+        date: formatDate(new Date())
+    };
+    
+    if (saveTempData(STORAGE_KEYS.BODYCARE, data)) {
+        showNotification('✨ 护理打卡已保存！');
     }
 }
 
-function initGameTypeToggle() {
-    const gameTypeSelect = document.getElementById('gameType');
-    gameTypeSelect.addEventListener('change', function() {
-        const gameType = this.value;
-        document.getElementById('generalGame').style.display = gameType === '通用游戏' ? 'block' : 'none';
-        document.getElementById('animalCrossing').style.display = gameType === '动物森友会' ? 'block' : 'none';
-    });
-}
+// ==================== 时间轴记录功能 ====================
 
+/**
+ * 保存睡眠记录
+ */
 function saveSleep() {
     const sleepDuration = document.getElementById('sleepDuration').value;
     const sleepQuality = document.getElementById('sleepQuality').value;
     const sleepFeeling = document.getElementById('sleepFeeling').value;
+    
     if (!sleepDuration || !sleepQuality) {
         showNotification('请填写睡眠时长和质量评分');
         return;
     }
+    
     const data = {
-        duration: parseInt(sleepDuration),
+        duration: parseFloat(sleepDuration),
         quality: parseInt(sleepQuality),
         feeling: sleepFeeling
     };
+    
     if (saveTempData(STORAGE_KEYS.SLEEP, data)) {
-        showNotification('睡眠记录已暂时保存！');
+        showNotification('💤 睡眠记录已保存！');
     }
 }
 
+/**
+ * 保存早餐记录
+ */
 function saveBreakfast() {
     const breakfastContent = document.getElementById('breakfastContent').value;
     const breakfastFeeling = document.getElementById('breakfastFeeling').value;
+    
     if (!breakfastContent) {
         showNotification('请填写早餐内容');
         return;
     }
+    
     const data = {
         content: breakfastContent,
         feeling: breakfastFeeling
     };
+    
     if (saveTempData(STORAGE_KEYS.BREAKFAST, data)) {
-        showNotification('早餐记录已暂时保存！');
+        showNotification('☕ 早餐记录已保存！');
     }
 }
 
-function saveSupplements() {
-    const ironSupplement = document.getElementById('ironSupplement').checked;
-    const data = {
-        iron: ironSupplement,
-        date: formatDate(new Date())
-    };
-    if (saveTempData(STORAGE_KEYS.SUPPLEMENTS, data)) {
-        showNotification('补剂记录已暂时保存！');
-    }
-}
-
+/**
+ * 保存工作记录
+ */
 function saveWork() {
     const todoItems = document.querySelectorAll('.todo-item');
     const doneItems = document.querySelectorAll('.done-item');
-    const todoList = Array.from(todoItems).map(item => item.value.trim()).filter(item => item !== '');
-    const doneList = Array.from(doneItems).map(item => item.value.trim()).filter(item => item !== '');
+    
+    const todoList = Array.from(todoItems)
+        .map(item => item.value.trim())
+        .filter(item => item !== '');
+    
+    const doneList = Array.from(doneItems)
+        .map(item => item.value.trim())
+        .filter(item => item !== '');
+    
     const data = {
         todo: todoList,
         done: doneList
     };
+    
     if (saveTempData(STORAGE_KEYS.WORK, data)) {
-        showNotification('工作记录已暂时保存！');
+        showNotification('💼 工作记录已保存！');
     }
 }
 
+/**
+ * 保存家务记录
+ */
 function saveHousework() {
     const houseworkGarbage = document.getElementById('houseworkGarbage').checked;
     const houseworkCooking = document.getElementById('houseworkCooking').checked;
@@ -1342,6 +770,7 @@ function saveHousework() {
     const houseworkCleaningFridge = document.getElementById('houseworkCleaningFridge').checked;
     const houseworkFeeling = document.getElementById('houseworkFeeling').value;
     const houseworkScore = document.getElementById('houseworkScore').value;
+    
     const data = {
         garbage: houseworkGarbage,
         cooking: houseworkCooking,
@@ -1353,104 +782,101 @@ function saveHousework() {
         cleaningBed: houseworkCleaningBed,
         cleaningFridge: houseworkCleaningFridge,
         feeling: houseworkFeeling,
-        score: parseInt(houseworkScore)
+        score: parseInt(houseworkScore) || 0
     };
+    
     if (saveTempData(STORAGE_KEYS.HOUSEWORK, data)) {
-        showNotification('家务记录已暂时保存！');
+        showNotification('🧹 家务记录已保存！');
     }
 }
 
-function saveLunch() {
-    const lunchContent = document.getElementById('lunchContent').value;
-    const lunchFeeling = document.getElementById('lunchFeeling').value;
-    if (!lunchContent) {
-        showNotification('请填写午餐内容');
-        return;
-    }
-    const data = {
-        content: lunchContent,
-        feeling: lunchFeeling
-    };
-    if (saveTempData(STORAGE_KEYS.LUNCH, data)) {
-        showNotification('午餐记录已暂时保存！');
-    }
-}
-
-function saveNap() {
-    const napDuration = document.getElementById('napDuration').value;
-    const napQuality = document.getElementById('napQuality').value;
-    const napFeeling = document.getElementById('napFeeling').value;
-    if (!napDuration || !napQuality) {
-        showNotification('请填写午休时长和质量评分');
-        return;
-    }
-    const data = {
-        duration: parseInt(napDuration),
-        quality: parseInt(napQuality),
-        feeling: napFeeling
-    };
-    if (saveTempData(STORAGE_KEYS.NAP, data)) {
-        showNotification('午休记录已暂时保存！');
-    }
-}
-
-function saveDinner() {
-    const dinnerContent = document.getElementById('dinnerContent').value;
-    const dinnerFeeling = document.getElementById('dinnerFeeling').value;
-    if (!dinnerContent) {
-        showNotification('请填写晚餐内容');
-        return;
-    }
-    const data = {
-        content: dinnerContent,
-        feeling: dinnerFeeling
-    };
-    if (saveTempData(STORAGE_KEYS.DINNER, data)) {
-        showNotification('晚餐记录已暂时保存！');
-    }
-}
-
-function saveVitamin() {
-    const vitaminDK = document.getElementById('vitaminDK').checked;
-    const data = {
-        vitaminDK: vitaminDK,
-        date: formatDate(new Date())
-    };
-    if (saveTempData(STORAGE_KEYS.VITAMIN, data)) {
-        showNotification('维生素记录已暂时保存！');
-    }
-}
-
+/**
+ * 保存学习记录
+ */
 function saveStudy() {
     const studySubject = document.getElementById('studySubject').value;
     const studyDuration = document.getElementById('studyDuration').value;
     const studyContent = document.getElementById('studyContent').value;
     const studySummary = document.getElementById('studySummary').value;
+    
     if (!studyDuration || !studyContent) {
         showNotification('请填写学习时长和内容');
         return;
     }
+    
     const data = {
         subject: studySubject,
         duration: parseInt(studyDuration),
         content: studyContent,
         summary: studySummary
     };
+    
     if (saveTempData(STORAGE_KEYS.STUDY, data)) {
-        showNotification('学习记录已暂时保存！');
+        showNotification('📚 学习记录已保存！');
     }
 }
 
+/**
+ * 保存午餐记录
+ */
+function saveLunch() {
+    const lunchContent = document.getElementById('lunchContent').value;
+    const lunchFeeling = document.getElementById('lunchFeeling').value;
+    
+    if (!lunchContent) {
+        showNotification('请填写午餐内容');
+        return;
+    }
+    
+    const data = {
+        content: lunchContent,
+        feeling: lunchFeeling
+    };
+    
+    if (saveTempData(STORAGE_KEYS.LUNCH, data)) {
+        showNotification('🍲 午餐记录已保存！');
+    }
+}
+
+/**
+ * 保存午休记录
+ */
+function saveNap() {
+    const napDuration = document.getElementById('napDuration').value;
+    const napQuality = document.getElementById('napQuality').value;
+    const napFeeling = document.getElementById('napFeeling').value;
+    
+    if (!napDuration || !napQuality) {
+        showNotification('请填写午休时长和质量评分');
+        return;
+    }
+    
+    const data = {
+        duration: parseInt(napDuration),
+        quality: parseInt(napQuality),
+        feeling: napFeeling
+    };
+    
+    if (saveTempData(STORAGE_KEYS.NAP, data)) {
+        showNotification('😴 午休记录已保存！');
+    }
+}
+
+/**
+ * 保存运动记录
+ */
 function saveExercise() {
     const exerciseType = document.getElementById('exerciseType').value;
     const exerciseDuration = document.getElementById('exerciseDuration').value;
     const exerciseItem = document.getElementById('exerciseItem').value;
     const exerciseCalories = document.getElementById('exerciseCalories').value;
     const exerciseFeeling = document.getElementById('exerciseFeeling').value;
+    
     if (!exerciseDuration || !exerciseItem) {
         showNotification('请填写运动时长和项目');
         return;
     }
+    
     const data = {
         type: exerciseType,
         duration: parseInt(exerciseDuration),
@@ -1458,35 +884,66 @@ function saveExercise() {
         calories: exerciseCalories ? parseInt(exerciseCalories) : 0,
         feeling: exerciseFeeling
     };
+    
     if (saveTempData(STORAGE_KEYS.EXERCISE, data)) {
-        showNotification('运动记录已暂时保存！');
+        showNotification('🏃 运动记录已保存！');
     }
 }
 
+/**
+ * 保存晚餐记录
+ */
+function saveDinner() {
+    const dinnerContent = document.getElementById('dinnerContent').value;
+    const dinnerFeeling = document.getElementById('dinnerFeeling').value;
+    
+    if (!dinnerContent) {
+        showNotification('请填写晚餐内容');
+        return;
+    }
+    
+    const data = {
+        content: dinnerContent,
+        feeling: dinnerFeeling
+    };
+    
+    if (saveTempData(STORAGE_KEYS.DINNER, data)) {
+        showNotification('🍽️ 晚餐记录已保存！');
+    }
+}
+
+/**
+ * 保存游戏记录
+ */
 function saveGame() {
     const gameType = document.getElementById('gameType').value;
+    
     if (gameType === '通用游戏') {
         const gameName = document.getElementById('gameName').value;
         const gameProgress = document.getElementById('gameProgress').value;
         const gameFeeling = document.getElementById('gameFeeling').value;
+        
         if (!gameName) {
             showNotification('请填写游戏名称');
             return;
         }
+        
         const data = {
             type: gameType,
             name: gameName,
             progress: gameProgress,
             feeling: gameFeeling
         };
+        
         if (saveTempData(STORAGE_KEYS.GAME, data)) {
-            showNotification('游戏记录已暂时保存！');
+            showNotification('🎮 游戏记录已保存！');
         }
     } else if (gameType === '动物森友会') {
         const acWeather = document.getElementById('acWeather').value;
         const acNPC = document.getElementById('acNPC').value;
         const acEvent = document.getElementById('acEvent').value;
         const acFeeling = document.getElementById('acFeeling').value;
+        
         const data = {
             type: gameType,
             weather: acWeather,
@@ -1495,58 +952,204 @@ function saveGame() {
             feeling: acFeeling,
             interactions: islandInteractions[formatDate(new Date())] || {}
         };
+        
         if (saveTempData(STORAGE_KEYS.GAME, data)) {
-            showNotification('动物森友会记录已暂时保存！');
+            showNotification('🏝️ 动物森友会记录已保存！');
         }
     }
 }
 
+/**
+ * 保存娱乐记录
+ */
 function saveEntertainment() {
     const entertainmentType = document.getElementById('entertainmentType').value;
     const entertainmentContent = document.getElementById('entertainmentContent').value;
     const entertainmentFeeling = document.getElementById('entertainmentFeeling').value;
+    
     if (!entertainmentContent) {
         showNotification('请填写娱乐内容');
         return;
     }
+    
     const data = {
         type: entertainmentType,
         content: entertainmentContent,
         feeling: entertainmentFeeling
     };
+    
     if (saveTempData(STORAGE_KEYS.ENTERTAINMENT, data)) {
-        showNotification('娱乐记录已暂时保存！');
+        showNotification('🎬 娱乐记录已保存！');
     }
 }
 
-function saveMagnesium() {
-    const magnesiumSupplement = document.getElementById('magnesiumSupplement').checked;
-    const data = {
-        magnesium: magnesiumSupplement,
-        date: formatDate(new Date())
-    };
-    if (saveTempData(STORAGE_KEYS.MAGNESIUM, data)) {
-        showNotification('补镁记录已暂时保存！');
+// ==================== 工作看板功能 ====================
+
+/**
+ * 初始化家务积分
+ */
+function initHouseworkScore() {
+    const checkboxes = document.querySelectorAll('#家务记录-content input[type="checkbox"]');
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateHouseworkScore);
+    });
+    updateHouseworkScore();
+}
+
+/**
+ * 更新家务积分
+ */
+function updateHouseworkScore() {
+    let score = 0;
+    const checkboxes = document.querySelectorAll('#家务记录-content input[type="checkbox"]');
+    checkboxes.forEach(checkbox => {
+        if (checkbox.checked) {
+            score++;
+        }
+    });
+    document.getElementById('houseworkScore').value = score;
+}
+
+/**
+ * 重置工作看板
+ */
+function resetWorkBoard() {
+    const todoItems = document.getElementById('todoItems');
+    const doneItems = document.getElementById('doneItems');
+    
+    while (todoItems.children.length > 1) {
+        todoItems.removeChild(todoItems.lastChild);
+    }
+    
+    while (doneItems.children.length > 1) {
+        doneItems.removeChild(doneItems.lastChild);
+    }
+    
+    const firstTodo = todoItems.querySelector('.todo-item');
+    const firstDone = doneItems.querySelector('.done-item');
+    
+    if (firstTodo) firstTodo.value = '';
+    if (firstDone) firstDone.value = '';
+    
+    todoItemCount = 1;
+    doneItemCount = 1;
+    updateWorkItemNumbers();
+}
+
+/**
+ * 添加待办事项
+ */
+function addTodoItem() {
+    const todoItems = document.getElementById('todoItems');
+    const newItem = document.createElement('div');
+    newItem.className = 'work-item';
+    newItem.innerHTML = `
+        <div class="item-number">${todoItemCount + 1}</div>
+        <input type="text" class="todo-item" placeholder="待办事项..." data-index="${todoItemCount}">
+    `;
+    todoItems.appendChild(newItem);
+    todoItemCount++;
+    updateWorkItemNumbers();
+}
+
+/**
+ * 添加完成事项
+ */
+function addDoneItem() {
+    const doneItems = document.getElementById('doneItems');
+    const newItem = document.createElement('div');
+    newItem.className = 'work-item';
+    newItem.innerHTML = `
+        <div class="item-number">${doneItemCount + 1}</div>
+        <input type="text" class="done-item" placeholder="已完成事项..." data-index="${doneItemCount}">
+    `;
+    doneItems.appendChild(newItem);
+    doneItemCount++;
+    updateWorkItemNumbers();
+}
+
+/**
+ * 更新工作项编号
+ */
+function updateWorkItemNumbers() {
+    const todoItems = document.querySelectorAll('#todoItems .work-item');
+    const doneItems = document.querySelectorAll('#doneItems .work-item');
+    
+    todoItems.forEach((item, index) => {
+        const numberDiv = item.querySelector('.item-number');
+        if (numberDiv) {
+            numberDiv.textContent = index + 1;
+        }
+        const input = item.querySelector('.todo-item');
+        if (input) {
+            input.dataset.index = index;
+        }
+    });
+    
+    doneItems.forEach((item, index) => {
+        const numberDiv = item.querySelector('.item-number');
+        if (numberDiv) {
+            numberDiv.textContent = index + 1;
+        }
+        const input = item.querySelector('.done-item');
+        if (input) {
+            input.dataset.index = index;
+        }
+    });
+    
+    todoItemCount = todoItems.length;
+    doneItemCount = doneItems.length;
+}
+
+/**
+ * 加载工作数据
+ */
+function loadWorkData() {
+    const dateStr = formatDate(new Date());
+    const workData = JSON.parse(localStorage.getItem(STORAGE_KEYS.WORK + '_TEMP') || '{}');
+    
+    if (workData[dateStr] && workData[dateStr].length > 0) {
+        const latestWork = workData[dateStr][workData[dateStr].length - 1];
+        
+        if (latestWork.todo && Array.isArray(latestWork.todo)) {
+            const todoItems = document.getElementById('todoItems');
+            todoItems.innerHTML = '';
+            
+            latestWork.todo.forEach((item, index) => {
+                const newItem = document.createElement('div');
+                newItem.className = 'work-item';
+                newItem.innerHTML = `
+                    <div class="item-number">${index + 1}</div>
+                    <input type="text" class="todo-item" placeholder="待办事项..." data-index="${index}" value="${item || ''}">
+                `;
+                todoItems.appendChild(newItem);
+            });
+        }
+        
+        if (latestWork.done && Array.isArray(latestWork.done)) {
+            const doneItems = document.getElementById('doneItems');
+            doneItems.innerHTML = '';
+            
+            latestWork.done.forEach((item, index) => {
+                const newItem = document.createElement('div');
+                newItem.className = 'work-item';
+                newItem.innerHTML = `
+                    <div class="item-number">${index + 1}</div>
+                    <input type="text" class="done-item" placeholder="已完成事项..." data-index="${index}" value="${item || ''}">
+                `;
+                doneItems.appendChild(newItem);
+            });
+        }
+        
+        updateWorkItemNumbers();
     }
 }
 
-function saveBodyCare() {
-    const bodyScrub = document.getElementById('bodyScrub').checked;
-    const hairRemoval = document.getElementById('hairRemoval').checked;
-    const bodyLotion = document.getElementById('bodyLotion').checked;
-    const data = {
-        scrub: bodyScrub,
-        hairRemoval: hairRemoval,
-        lotion: bodyLotion,
-        date: formatDate(new Date())
-    };
-    if (saveTempData(STORAGE_KEYS.BODYCARE, data)) {
-        showNotification('身体护理记录已暂时保存！');
-    }
-}
+// ==================== 财务记账功能 ====================
 
-// ==================== 财务记账多条目功能 ====================
-
+/**
+ * 添加财务条目
+ */
 function addFinanceItem(type) {
     const dateStr = formatDate(new Date());
     const containerId = type === 'income' ? 'incomeItems' : 'expenseItems';
@@ -1565,23 +1168,23 @@ function addFinanceItem(type) {
                 <div class="form-column">
                     <select class="finance-category">
                         ${type === 'income' ?
-        '<option value="工资">工资</option>' +
-        '<option value="奖金">奖金</option>' +
-        '<option value="兼职">兼职</option>' +
-        '<option value="投资收益">投资收益</option>' +
-        '<option value="礼金">礼金</option>' +
-        '<option value="其他收入">其他收入</option>' :
-        '<option value="正餐">正餐</option>' +
-        '<option value="零食奶茶宵夜">零食奶茶宵夜</option>' +
-        '<option value="日用">日用</option>' +
-        '<option value="服饰">服饰</option>' +
-        '<option value="游戏">游戏</option>' +
-        '<option value="兴趣爱好">兴趣爱好</option>' +
-        '<option value="礼物">礼物</option>' +
-        '<option value="交通">交通</option>' +
-        '<option value="医疗">医疗</option>' +
-        '<option value="其他支出">其他支出</option>'
-    }
+                            '<option value="工资">工资</option>' +
+                            '<option value="奖金">奖金</option>' +
+                            '<option value="兼职">兼职</option>' +
+                            '<option value="投资收益">投资收益</option>' +
+                            '<option value="礼金">礼金</option>' +
+                            '<option value="其他收入">其他收入</option>' :
+                            '<option value="正餐">正餐</option>' +
+                            '<option value="零食奶茶宵夜">零食奶茶宵夜</option>' +
+                            '<option value="日用">日用</option>' +
+                            '<option value="服饰">服饰</option>' +
+                            '<option value="游戏">游戏</option>' +
+                            '<option value="兴趣爱好">兴趣爱好</option>' +
+                            '<option value="礼物">礼物</option>' +
+                            '<option value="交通">交通</option>' +
+                            '<option value="医疗">医疗</option>' +
+                            '<option value="其他支出">其他支出</option>'
+                        }
                     </select>
                 </div>
             </div>
@@ -1613,6 +1216,9 @@ function addFinanceItem(type) {
     calculateFinanceSummary();
 }
 
+/**
+ * 删除财务条目
+ */
 function deleteFinanceItem(button, type) {
     const item = button.closest(`.${type}-item`);
     if (item) {
@@ -1622,6 +1228,9 @@ function deleteFinanceItem(button, type) {
     }
 }
 
+/**
+ * 更新财务条目编号
+ */
 function updateFinanceItemNumbers(type) {
     const containerId = type === 'income' ? 'incomeItems' : 'expenseItems';
     const items = document.querySelectorAll(`#${containerId} .finance-item`);
@@ -1640,6 +1249,9 @@ function updateFinanceItemNumbers(type) {
     }
 }
 
+/**
+ * 计算财务汇总
+ */
 function calculateFinanceSummary() {
     let totalIncome = 0;
     let totalExpense = 0;
@@ -1670,137 +1282,9 @@ function calculateFinanceSummary() {
     if (expenseOverview) expenseOverview.textContent = `${totalExpense.toFixed(2)}元`;
 }
 
-function loadFinanceData() {
-    const dateStr = formatDate(new Date());
-    const financeData = JSON.parse(localStorage.getItem(STORAGE_KEYS.FINANCE + '_TEMP') || '{}');
-
-    if (financeData[dateStr]) {
-        const data = financeData[dateStr];
-
-        // 清空当前显示
-        const incomeItems = document.getElementById('incomeItems');
-        const expenseItems = document.getElementById('expenseItems');
-        if (incomeItems) incomeItems.innerHTML = '';
-        if (expenseItems) expenseItems.innerHTML = '';
-
-        let incomeIndex = 0;
-        let expenseIndex = 0;
-
-        // 加载收入项
-        if (data.incomes && Array.isArray(data.incomes)) {
-            data.incomes.forEach(record => {
-                const container = document.getElementById('incomeItems');
-                if (container) {
-                    const newItem = createFinanceItemElement('income', incomeIndex++, record);
-                    container.appendChild(newItem);
-                }
-            });
-        }
-
-        // 加载支出项
-        if (data.expenses && Array.isArray(data.expenses)) {
-            data.expenses.forEach(record => {
-                const container = document.getElementById('expenseItems');
-                if (container) {
-                    const newItem = createFinanceItemElement('expense', expenseIndex++, record);
-                    container.appendChild(newItem);
-                }
-            });
-        }
-
-        incomeItemCount = incomeIndex;
-        expenseItemCount = expenseIndex;
-        updateFinanceItemNumbers('income');
-        updateFinanceItemNumbers('expense');
-        calculateFinanceSummary();
-    }
-}
-
-function createFinanceItemElement(type, index, record) {
-    const item = document.createElement('div');
-    item.className = `finance-item ${type}-item`;
-    item.innerHTML = `
-        <div class="item-number">${index + 1}</div>
-        <div class="finance-item-content">
-            <div class="form-row">
-                <div class="form-column">
-                    <input type="number" class="finance-amount" placeholder="金额 (元)" min="0" step="0.01" value="${record.amount || ''}">
-                </div>
-                <div class="form-column">
-                    <select class="finance-category">
-                        ${getCategoryOptions(type, record.category)}
-                    </select>
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-column">
-                    <select class="finance-payment-method">
-                        <option value="">选择支付方式</option>
-                        <option value="信用卡" ${record.paymentMethod === '信用卡' ? 'selected' : ''}>💳 信用卡</option>
-                        <option value="储蓄卡" ${record.paymentMethod === '储蓄卡' ? 'selected' : ''}>🏦 储蓄卡</option>
-                        <option value="支付宝" ${record.paymentMethod === '支付宝' ? 'selected' : ''}>💰 支付宝</option>
-                        <option value="微信" ${record.paymentMethod === '微信' ? 'selected' : ''}>💚 微信</option>
-                        <option value="现金" ${record.paymentMethod === '现金' ? 'selected' : ''}>💵 现金</option>
-                        <option value="其他" ${record.paymentMethod === '其他' ? 'selected' : ''}>📱 其他</option>
-                    </select>
-                </div>
-            </div>
-            <input type="text" class="finance-description" placeholder="${type === 'income' ? '收入' : '支出'}描述..." value="${record.description || ''}">
-            <input type="date" class="finance-date" value="${record.date || formatDate(new Date())}">
-            <div class="finance-item-actions">
-                <button class="delete-finance-item" onclick="deleteFinanceItem(this, '${type}')" title="删除此项">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
-        </div>
-    `;
-
-    // 设置选中正确的分类
-    if (record.category) {
-        const select = item.querySelector('select');
-        if (select) {
-            select.value = record.category;
-        }
-    }
-
-    return item;
-}
-
-function getCategoryOptions(type, selectedCategory) {
-    const incomeOptions = [
-        {value: '工资', label: '工资'},
-        {value: '奖金', label: '奖金'},
-        {value: '兼职', label: '兼职'},
-        {value: '投资收益', label: '投资收益'},
-        {value: '礼金', label: '礼金'},
-        {value: '其他收入', label: '其他收入'}
-    ];
-
-    const expenseOptions = [
-        {value: '正餐', label: '正餐'},
-        {value: '零食奶茶宵夜', label: '零食奶茶宵夜'},
-        {value: '日用', label: '日用'},
-        {value: '服饰', label: '服饰'},
-        {value: '游戏', label: '游戏'},
-        {value: '兴趣爱好', label: '兴趣爱好'},
-        {value: '礼物', label: '礼物'},
-        {value: '交通', label: '交通'},
-        {value: '医疗', label: '医疗'},
-        {value: '其他支出', label: '其他支出'}
-    ];
-
-    const options = type === 'income' ? incomeOptions : expenseOptions;
-    let html = '';
-
-    options.forEach(option => {
-        const selected = option.value === selectedCategory ? 'selected' : '';
-        html += `<option value="${option.value}" ${selected}>${option.label}</option>`;
-    });
-
-    return html;
-}
-
-// 修改原有的 saveFinance 函数
+/**
+ * 保存财务记录
+ */
 function saveFinance() {
     const dateStr = formatDate(new Date());
     const financeData = {
@@ -1870,83 +1354,182 @@ function saveFinance() {
 
     // 保存数据
     if (saveTempData(STORAGE_KEYS.FINANCE, financeData)) {
-        showNotification('财务记录已暂时保存！');
+        showNotification('💰 财务记录已保存！');
         calculateFinanceSummary();
     }
 }
 
-// ==================== 财务功能结束 ====================
+/**
+ * 加载财务数据
+ */
+function loadFinanceData() {
+    const dateStr = formatDate(new Date());
+    const financeData = JSON.parse(localStorage.getItem(STORAGE_KEYS.FINANCE + '_TEMP') || '{}');
 
-function loadImportantDates() {
-    const data = localStorage.getItem(STORAGE_KEYS.IMPORTANT_DATES);
-    if (data) {
-        importantDates = JSON.parse(data);
-        renderImportantDatesList();
+    if (financeData[dateStr]) {
+        const data = financeData[dateStr];
+
+        // 清空当前显示
+        const incomeItems = document.getElementById('incomeItems');
+        const expenseItems = document.getElementById('expenseItems');
+        if (incomeItems) incomeItems.innerHTML = '';
+        if (expenseItems) expenseItems.innerHTML = '';
+
+        let incomeIndex = 0;
+        let expenseIndex = 0;
+
+        // 加载收入项
+        if (data.incomes && Array.isArray(data.incomes)) {
+            data.incomes.forEach(record => {
+                const container = document.getElementById('incomeItems');
+                if (container) {
+                    const newItem = createFinanceItemElement('income', incomeIndex++, record);
+                    container.appendChild(newItem);
+                }
+            });
+        }
+
+        // 加载支出项
+        if (data.expenses && Array.isArray(data.expenses)) {
+            data.expenses.forEach(record => {
+                const container = document.getElementById('expenseItems');
+                if (container) {
+                    const newItem = createFinanceItemElement('expense', expenseIndex++, record);
+                    container.appendChild(newItem);
+                }
+            });
+        }
+
+        incomeItemCount = incomeIndex;
+        expenseItemCount = expenseIndex;
+        updateFinanceItemNumbers('income');
+        updateFinanceItemNumbers('expense');
+        calculateFinanceSummary();
     }
 }
 
-function renderImportantDatesList() {
-    const listContainer = document.getElementById('importantDatesList');
-    if (Object.keys(importantDates).length === 0) {
-        listContainer.innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">暂无重要日期标记</p>';
-        return;
+/**
+ * 创建财务条目元素
+ */
+function createFinanceItemElement(type, index, record) {
+    const dateStr = formatDate(new Date());
+    const item = document.createElement('div');
+    item.className = `finance-item ${type}-item`;
+    item.innerHTML = `
+        <div class="item-number">${index + 1}</div>
+        <div class="finance-item-content">
+            <div class="form-row">
+                <div class="form-column">
+                    <input type="number" class="finance-amount" placeholder="金额 (元)" min="0" step="0.01" value="${record.amount || ''}">
+                </div>
+                <div class="form-column">
+                    <select class="finance-category">
+                        ${getCategoryOptions(type, record.category)}
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-column">
+                    <select class="finance-payment-method">
+                        <option value="">选择支付方式</option>
+                        <option value="信用卡" ${record.paymentMethod === '信用卡' ? 'selected' : ''}>💳 信用卡</option>
+                        <option value="储蓄卡" ${record.paymentMethod === '储蓄卡' ? 'selected' : ''}>🏦 储蓄卡</option>
+                        <option value="支付宝" ${record.paymentMethod === '支付宝' ? 'selected' : ''}>💰 支付宝</option>
+                        <option value="微信" ${record.paymentMethod === '微信' ? 'selected' : ''}>💚 微信</option>
+                        <option value="现金" ${record.paymentMethod === '现金' ? 'selected' : ''}>💵 现金</option>
+                        <option value="其他" ${record.paymentMethod === '其他' ? 'selected' : ''}>📱 其他</option>
+                    </select>
+                </div>
+            </div>
+            <input type="text" class="finance-description" placeholder="${type === 'income' ? '收入' : '支出'}描述..." value="${record.description || ''}">
+            <input type="date" class="finance-date" value="${record.date || dateStr}">
+            <div class="finance-item-actions">
+                <button class="delete-finance-item" onclick="deleteFinanceItem(this, '${type}')" title="删除此项">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+    `;
+
+    // 设置选中正确的分类
+    if (record.category) {
+        const select = item.querySelector('select');
+        if (select) {
+            select.value = record.category;
+        }
     }
+
+    return item;
+}
+
+/**
+ * 获取分类选项
+ */
+function getCategoryOptions(type, selectedCategory) {
+    const incomeOptions = [
+        {value: '工资', label: '工资'},
+        {value: '奖金', label: '奖金'},
+        {value: '兼职', label: '兼职'},
+        {value: '投资收益', label: '投资收益'},
+        {value: '礼金', label: '礼金'},
+        {value: '其他收入', label: '其他收入'}
+    ];
+
+    const expenseOptions = [
+        {value: '正餐', label: '正餐'},
+        {value: '零食奶茶宵夜', label: '零食奶茶宵夜'},
+        {value: '日用', label: '日用'},
+        {value: '服饰', label: '服饰'},
+        {value: '游戏', label: '游戏'},
+        {value: '兴趣爱好', label: '兴趣爱好'},
+        {value: '礼物', label: '礼物'},
+        {value: '交通', label: '交通'},
+        {value: '医疗', label: '医疗'},
+        {value: '其他支出', label: '其他支出'}
+    ];
+
+    const options = type === 'income' ? incomeOptions : expenseOptions;
     let html = '';
-    const sortedDates = Object.keys(importantDates).sort();
-    sortedDates.forEach(dateStr => {
-        const dateInfo = importantDates[dateStr];
-        const dateType = IMPORTANT_DATE_TYPES[dateInfo.type] || IMPORTANT_DATE_TYPES.other;
-        html += ` 
-        <div class="important-date-item"> 
-            <div class="important-date-info"> 
-                <span class="important-date-type ${dateInfo.type}"></span> 
-                <span><strong>${dateStr}</strong> - ${dateInfo.label} (${dateType.name})</span> 
-            </div> 
-            <button class="delete-important-date" onclick="deleteImportantDate('${dateStr}')"> 
-                <i class="fas fa-trash"></i> 
-            </button> 
-        </div> 
-        `;
+
+    options.forEach(option => {
+        const selected = option.value === selectedCategory ? 'selected' : '';
+        html += `<option value="${option.value}" ${selected}>${option.label}</option>`;
     });
-    listContainer.innerHTML = html;
+
+    return html;
 }
 
-function addImportantDate() {
-    const date = document.getElementById('importantDate').value;
-    const type = document.getElementById('importantType').value;
-    const label = document.getElementById('importantLabel').value;
-    if (!date || !label) {
-        showNotification('请填写日期和标签');
-        return;
-    }
-    importantDates[date] = {
-        type: type,
-        label: label,
-        addedDate: formatDate(new Date())
-    };
-    localStorage.setItem(STORAGE_KEYS.IMPORTANT_DATES, JSON.stringify(importantDates));
-    renderImportantDatesList();
-    renderCalendar();
-    document.getElementById('importantLabel').value = '';
-    document.getElementById('addImportantForm').style.display = 'none';
-    document.getElementById('toggleAddImportantForm').innerHTML = '<i class="fas fa-plus"></i> 添加重要日期';
-    showNotification('重要日期已添加！');
+/**
+ * 重置财务记账板
+ */
+function resetFinanceBoard() {
+    const incomeItems = document.getElementById('incomeItems');
+    const expenseItems = document.getElementById('expenseItems');
+    
+    if (incomeItems) incomeItems.innerHTML = '';
+    if (expenseItems) expenseItems.innerHTML = '';
+    
+    // 添加默认项
+    addFinanceItem('income');
+    addFinanceItem('expense');
+    
+    incomeItemCount = 1;
+    expenseItemCount = 1;
+    calculateFinanceSummary();
 }
 
-function deleteImportantDate(dateStr) {
-    if (confirm(`确定要删除 ${dateStr} 的重要日期标记吗？`)) {
-        delete importantDates[dateStr];
-        localStorage.setItem(STORAGE_KEYS.IMPORTANT_DATES, JSON.stringify(importantDates));
-        renderImportantDatesList();
-        renderCalendar();
-        showNotification('重要日期已删除！');
-    }
-}
+// ==================== 日历功能 ====================
 
+/**
+ * 初始化日历
+ */
 function initCalendar() {
     renderCalendar();
 }
 
+/**
+ * 渲染日历
+ */
 function renderCalendar() {
     const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
     document.getElementById('calendarMonth').textContent = `${currentYear}年${monthNames[currentMonth]}`;
@@ -1983,21 +1566,12 @@ function renderCalendar() {
 
         if (daysWithRecords[dateStr]) {
             day.classList.add('has-record');
-            if (daysWithRecords[dateStr].includes('sleep') || daysWithRecords[dateStr].includes('exercise')) {
-                day.classList.add('has-health');
-            } else if (daysWithRecords[dateStr].includes('study')) {
-                day.classList.add('has-study');
-            } else if (daysWithRecords[dateStr].includes('finance')) {
-                day.classList.add('has-finance');
-            } else if (daysWithRecords[dateStr].includes('housework')) {
-                day.classList.add('has-study');
-            }
         }
 
         if (importantDates[dateStr]) {
             day.classList.add('has-important');
             const importantType = importantDates[dateStr].type;
-            day.classList.add(IMPORTANT_DATE_TYPES[importantType].class);
+            day.classList.add(`important-${importantType}`);
         }
 
         day.addEventListener('click', function() {
@@ -2019,10 +1593,14 @@ function renderCalendar() {
     }
 }
 
+/**
+ * 获取有记录的日子
+ */
 function getDaysWithRecords() {
     const daysWithRecords = {};
     Object.values(STORAGE_KEYS).forEach(key => {
         if (key === STORAGE_KEYS.ISLAND_INTERACTIONS || key === STORAGE_KEYS.IMPORTANT_DATES) return;
+        
         const data = localStorage.getItem(key);
         if (data) {
             const parsedData = JSON.parse(data);
@@ -2033,6 +1611,7 @@ function getDaysWithRecords() {
                 daysWithRecords[date].push(key);
             });
         }
+        
         const tempData = localStorage.getItem(key + '_TEMP');
         if (tempData) {
             const parsedTempData = JSON.parse(tempData);
@@ -2046,9 +1625,13 @@ function getDaysWithRecords() {
             });
         }
     });
+    
     return daysWithRecords;
 }
 
+/**
+ * 显示日期详情
+ */
 function showDateDetails(dateStr) {
     selectedDate = dateStr;
     const detailsDiv = document.getElementById('dateDetails');
@@ -2056,16 +1639,17 @@ function showDateDetails(dateStr) {
 
     if (importantDates[dateStr]) {
         const importantInfo = importantDates[dateStr];
-        const dateType = IMPORTANT_DATE_TYPES[importantInfo.type] || IMPORTANT_DATE_TYPES.other;
-        html += `<div class="record-item" style="background-color: #FFF3E0; padding: 10px; border-radius: 6px; margin-bottom: 10px; border-left: 4px solid ${importantInfo.type === 'anniversary' ? '#FF5252' : importantInfo.type === 'deadline' ? '#2196F3' : importantInfo.type === 'event' ? '#4CAF50' : '#9C27B0'}"> 
-        <strong><i class="fas fa-star"></i> 重要日期: ${dateType.name}</strong><br> 
-        <span>${importantInfo.label}</span> 
+        const dateType = getImportantDateTypeName(importantInfo.type);
+        html += `<div class="record-item" style="background-color: #FFF3E0; padding: 12px; border-radius: 8px; margin-bottom: 12px; border-left: 4px solid ${getImportantDateColor(importantInfo.type)}">
+            <strong><i class="fas fa-star"></i> 重要日期: ${dateType}</strong><br>
+            <span>${importantInfo.label}</span>
         </div>`;
     }
 
     let hasRecords = false;
     Object.values(STORAGE_KEYS).forEach(key => {
         if (key === STORAGE_KEYS.ISLAND_INTERACTIONS || key === STORAGE_KEYS.IMPORTANT_DATES) return;
+        
         const data = localStorage.getItem(key);
         if (data) {
             const parsedData = JSON.parse(data);
@@ -2076,7 +1660,7 @@ function showDateDetails(dateStr) {
                     html += `<div class="record-item">`;
                     switch(key) {
                         case STORAGE_KEYS.SLEEP:
-                            html += `睡眠时长: ${(record.duration/60).toFixed(1)}小时, 质量评分: ${record.quality}, 感受: ${record.feeling}`;
+                            html += `睡眠时长: ${record.duration}小时, 质量评分: ${record.quality}, 感受: ${record.feeling}`;
                             break;
                         case STORAGE_KEYS.BREAKFAST:
                             html += `早餐内容: ${record.content}, 感受: ${record.feeling}`;
@@ -2091,18 +1675,21 @@ function showDateDetails(dateStr) {
                             html += `类型: ${record.type}, 项目: ${record.item}, 时长: ${record.duration}分钟`;
                             break;
                         case STORAGE_KEYS.FINANCE:
-                            html += `类型: ${record.type}, 分类: ${record.category}, 金额: ${record.amount}元, 描述: ${record.description}`;
+                            if (record.incomes && record.incomes.length > 0) {
+                                html += `收入: ${record.incomes.length}笔<br>`;
+                            }
+                            if (record.expenses && record.expenses.length > 0) {
+                                html += `支出: ${record.expenses.length}笔`;
+                            }
                             break;
                         case STORAGE_KEYS.GAME:
                             html += `游戏类型: ${record.type}`;
                             if (record.type === '动物森友会') {
-                                html += `, 天气: ${record.weather}, NPC: ${record.npc}, 感受: ${record.feeling}`;
-                            } else {
-                                html += `, 名称: ${record.name}, 进度: ${record.progress}, 感受: ${record.feeling}`;
+                                html += `, 天气: ${record.weather}, NPC: ${record.npc}`;
                             }
                             break;
                         case STORAGE_KEYS.ENTERTAINMENT:
-                            html += `娱乐类型: ${record.type}, 内容: ${record.content}, 感受: ${record.feeling}`;
+                            html += `娱乐类型: ${record.type}, 内容: ${record.content}`;
                             break;
                         default:
                             html += JSON.stringify(record);
@@ -2121,28 +1708,9 @@ function showDateDetails(dateStr) {
     detailsDiv.innerHTML = html;
 }
 
-function getRecordTypeName(key) {
-    const names = {
-        'sleepData': '睡眠记录',
-        'breakfastData': '早餐记录',
-        'supplementData': '补剂记录',
-        'workData': '工作记录',
-        'houseworkData': '家务记录',
-        'lunchData': '午餐记录',
-        'napData': '午休记录',
-        'dinnerData': '晚餐记录',
-        'vitaminData': '维生素记录',
-        'studyData': '学习记录',
-        'exerciseData': '运动记录',
-        'gameData': '游戏记录',
-        'entertainmentData': '娱乐记录',
-        'magnesiumData': '补镁记录',
-        'bodycareData': '身体护理记录',
-        'financeData': '财务记录'
-    };
-    return names[key] || key;
-}
-
+/**
+ * 跳转到今天
+ */
 function goToToday() {
     currentYear = today.getFullYear();
     currentMonth = today.getMonth();
@@ -2150,64 +1718,127 @@ function goToToday() {
     showDateDetails(formatDate(today));
 }
 
-function updateOverview() {
-    const dateStr = formatDate(new Date());
-    const workData = JSON.parse(localStorage.getItem(STORAGE_KEYS.WORK) || '{}');
-    let workOverview = '0/0';
-    if (workData[dateStr] && workData[dateStr].length > 0) {
-        const latestWork = workData[dateStr][workData[dateStr].length - 1];
-        const todoCount = latestWork.todo ? latestWork.todo.length : 0;
-        const doneCount = latestWork.done ? latestWork.done.length : 0;
-        workOverview = `${doneCount}/${todoCount}`;
-    }
-    const workOverviewEl = document.getElementById('workOverview');
-    if (workOverviewEl) workOverviewEl.textContent = workOverview;
+// ==================== 重要日期功能 ====================
 
-    const houseworkData = JSON.parse(localStorage.getItem(STORAGE_KEYS.HOUSEWORK) || '{}');
-    let houseworkScore = 0;
-    if (houseworkData[dateStr] && houseworkData[dateStr].length > 0) {
-        const latestHousework = houseworkData[dateStr][houseworkData[dateStr].length - 1];
-        houseworkScore = latestHousework.score || 0;
+/**
+ * 加载重要日期
+ */
+function loadImportantDates() {
+    const data = localStorage.getItem(STORAGE_KEYS.IMPORTANT_DATES);
+    if (data) {
+        importantDates = JSON.parse(data);
+        renderImportantDatesList();
     }
-    const houseworkOverviewEl = document.getElementById('houseworkOverview');
-    if (houseworkOverviewEl) houseworkOverviewEl.textContent = `${houseworkScore}分`;
-
-    const studyData = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDY) || '{}');
-    let totalStudyTime = 0;
-    if (studyData[dateStr]) {
-        studyData[dateStr].forEach(record => {
-            totalStudyTime += record.duration || 0;
-        });
-    }
-    const studyOverviewEl = document.getElementById('studyOverview');
-    if (studyOverviewEl) studyOverviewEl.textContent = `${totalStudyTime}分钟`;
-
-    const exerciseData = JSON.parse(localStorage.getItem(STORAGE_KEYS.EXERCISE) || '{}');
-    let totalExerciseTime = 0;
-    if (exerciseData[dateStr]) {
-        exerciseData[dateStr].forEach(record => {
-            totalExerciseTime += record.duration || 0;
-        });
-    }
-    const exerciseOverviewEl = document.getElementById('exerciseOverview');
-    if (exerciseOverviewEl) exerciseOverviewEl.textContent = `${totalExerciseTime}分钟`;
-
-    const financeData = JSON.parse(localStorage.getItem(STORAGE_KEYS.FINANCE) || '{}');
-    let todayExpense = 0;
-    if (financeData[dateStr]) {
-        const data = financeData[dateStr];
-        if (data.expenses && Array.isArray(data.expenses)) {
-            data.expenses.forEach(record => {
-                if (record.type === '支出') {
-                    todayExpense += record.amount || 0;
-                }
-            });
-        }
-    }
-    const expenseOverviewEl = document.getElementById('expenseOverview');
-    if (expenseOverviewEl) expenseOverviewEl.textContent = `${todayExpense.toFixed(2)}元`;
 }
 
+/**
+ * 渲染重要日期列表
+ */
+function renderImportantDatesList() {
+    const listContainer = document.getElementById('importantDatesList');
+    if (Object.keys(importantDates).length === 0) {
+        listContainer.innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">暂无重要日期标记</p>';
+        return;
+    }
+    
+    let html = '';
+    const sortedDates = Object.keys(importantDates).sort();
+    sortedDates.forEach(dateStr => {
+        const dateInfo = importantDates[dateStr];
+        const dateType = getImportantDateTypeName(dateInfo.type);
+        html += `
+        <div class="important-date-item">
+            <div class="important-date-info">
+                <span class="important-date-type ${dateInfo.type}"></span>
+                <span><strong>${dateStr}</strong> - ${dateInfo.label} (${dateType})</span>
+            </div>
+            <button class="delete-important-date" onclick="deleteImportantDate('${dateStr}')">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+        `;
+    });
+    listContainer.innerHTML = html;
+}
+
+/**
+ * 添加重要日期
+ */
+function addImportantDate() {
+    const date = document.getElementById('importantDate').value;
+    const type = document.getElementById('importantType').value;
+    const label = document.getElementById('importantLabel').value;
+    
+    if (!date || !label) {
+        showNotification('请填写日期和标签');
+        return;
+    }
+    
+    importantDates[date] = {
+        type: type,
+        label: label,
+        addedDate: formatDate(new Date())
+    };
+    
+    localStorage.setItem(STORAGE_KEYS.IMPORTANT_DATES, JSON.stringify(importantDates));
+    renderImportantDatesList();
+    renderCalendar();
+    
+    document.getElementById('importantLabel').value = '';
+    document.getElementById('addImportantForm').style.display = 'none';
+    document.getElementById('toggleAddImportantForm').innerHTML = '<i class="fas fa-plus"></i> 添加重要日期';
+    
+    showNotification('⭐ 重要日期已添加！');
+}
+
+/**
+ * 删除重要日期
+ */
+function deleteImportantDate(dateStr) {
+    if (confirm(`确定要删除 ${dateStr} 的重要日期标记吗？`)) {
+        delete importantDates[dateStr];
+        localStorage.setItem(STORAGE_KEYS.IMPORTANT_DATES, JSON.stringify(importantDates));
+        renderImportantDatesList();
+        renderCalendar();
+        showNotification('🗑️ 重要日期已删除！');
+    }
+}
+
+/**
+ * 获取重要日期类型名称
+ */
+function getImportantDateTypeName(type) {
+    const typeNames = {
+        'anniversary': '纪念日',
+        'deadline': '截止日期',
+        'event': '重要事件',
+        'reminder': '提醒事项',
+        'birthday': '生日',
+        'other': '其他'
+    };
+    return typeNames[type] || '其他';
+}
+
+/**
+ * 获取重要日期颜色
+ */
+function getImportantDateColor(type) {
+    const colors = {
+        'anniversary': '#FF6B6B',
+        'deadline': '#4ECDC4',
+        'event': '#95E1D3',
+        'reminder': '#C7CEEA',
+        'birthday': '#FFC8DD',
+        'other': '#FFAFCC'
+    };
+    return colors[type] || '#FFAFCC';
+}
+
+// ==================== 数据复盘功能 ====================
+
+/**
+ * 更新复盘数据
+ */
 function updateReviewData() {
     updateHealthReview();
     updateStudyReview();
@@ -2216,20 +1847,22 @@ function updateReviewData() {
     updateEntertainmentReview();
 }
 
+/**
+ * 更新健康复盘数据
+ */
 function updateHealthReview() {
     const sleepData = JSON.parse(localStorage.getItem(STORAGE_KEYS.SLEEP) || '{}');
     const exerciseData = JSON.parse(localStorage.getItem(STORAGE_KEYS.EXERCISE) || '{}');
     const supplementData = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUPPLEMENTS) || '{}');
-    const vitaminData = JSON.parse(localStorage.getItem(STORAGE_KEYS.VITAMIN) || '{}');
-    const magnesiumData = JSON.parse(localStorage.getItem(STORAGE_KEYS.MAGNESIUM) || '{}');
     const bodycareData = JSON.parse(localStorage.getItem(STORAGE_KEYS.BODYCARE) || '{}');
 
+    // 平均睡眠时长
     let totalSleepHours = 0;
     let sleepCount = 0;
     Object.keys(sleepData).forEach(date => {
         sleepData[date].forEach(record => {
             if (record.duration) {
-                totalSleepHours += record.duration / 60;
+                totalSleepHours += record.duration;
                 sleepCount++;
             }
         });
@@ -2237,6 +1870,7 @@ function updateHealthReview() {
     const avgSleepHours = sleepCount > 0 ? (totalSleepHours / sleepCount).toFixed(1) : '--';
     document.getElementById('avgSleepHours').textContent = avgSleepHours;
 
+    // 本周运动天数
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
     let exerciseDays = 0;
@@ -2248,36 +1882,42 @@ function updateHealthReview() {
     });
     document.getElementById('exerciseDays').textContent = exerciseDays;
 
-    let supplementDays = 0;
-    let totalDays = 0;
-    const today = new Date();
+    // 补剂打卡率（最近30天）
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    for (let d = new Date(thirtyDaysAgo); d <= today; d.setDate(d.getDate() + 1)) {
+    let supplementDays = 0;
+    let totalDays = 0;
+    
+    for (let d = new Date(thirtyDaysAgo); d <= new Date(); d.setDate(d.getDate() + 1)) {
         const dateStr = formatDate(d);
         totalDays++;
-        if ((supplementData[dateStr] && supplementData[dateStr].some(r => r.iron)) ||
-            (vitaminData[dateStr] && vitaminData[dateStr].some(r => r.vitaminDK)) ||
-            (magnesiumData[dateStr] && magnesiumData[dateStr].some(r => r.magnesium))) {
+        if (supplementData[dateStr] && supplementData[dateStr].some(r => r.iron || r.vitaminDK || r.magnesium)) {
             supplementDays++;
         }
     }
+    
     const supplementRate = totalDays > 0 ? Math.round((supplementDays / totalDays) * 100) : 0;
     document.getElementById('supplementRate').textContent = `${supplementRate}%`;
 
+    // 护理完成率（最近30天）
     let bodycareDays = 0;
     totalDays = 0;
-    for (let d = new Date(thirtyDaysAgo); d <= today; d.setDate(d.getDate() + 1)) {
+    
+    for (let d = new Date(thirtyDaysAgo); d <= new Date(); d.setDate(d.getDate() + 1)) {
         const dateStr = formatDate(d);
         totalDays++;
-        if (bodycareData[dateStr] && bodycareData[dateStr].some(r => r.scrub && r.hairRemoval && r.lotion)) {
+        if (bodycareData[dateStr] && bodycareData[dateStr].some(r => r.scrub || r.hairRemoval || r.lotion)) {
             bodycareDays++;
         }
     }
+    
     const bodycareRate = totalDays > 0 ? Math.round((bodycareDays / totalDays) * 100) : 0;
     document.getElementById('bodycareRate').textContent = `${bodycareRate}%`;
 }
 
+/**
+ * 更新学习复盘数据
+ */
 function updateStudyReview() {
     const studyData = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDY) || '{}');
     let totalStudyTime = 0;
@@ -2301,6 +1941,7 @@ function updateStudyReview() {
 
     const subjectList = document.getElementById('subjectDistribution');
     subjectList.innerHTML = '';
+    
     if (Object.keys(subjectDistribution).length > 0) {
         Object.keys(subjectDistribution).forEach(subject => {
             const li = document.createElement('li');
@@ -2314,6 +1955,9 @@ function updateStudyReview() {
     }
 }
 
+/**
+ * 更新家务复盘数据
+ */
 function updateHouseworkReview() {
     const houseworkData = JSON.parse(localStorage.getItem(STORAGE_KEYS.HOUSEWORK) || '{}');
     let totalPoints = 0;
@@ -2352,6 +1996,7 @@ function updateHouseworkReview() {
 
     const houseworkList = document.getElementById('houseworkStats');
     houseworkList.innerHTML = '';
+    
     if (houseworkDays > 0) {
         Object.keys(houseworkStats).forEach(type => {
             if (houseworkStats[type] > 0) {
@@ -2360,6 +2005,7 @@ function updateHouseworkReview() {
                 houseworkList.appendChild(li);
             }
         });
+        
         if (houseworkList.children.length === 0) {
             const li = document.createElement('li');
             li.textContent = '暂无家务记录';
@@ -2372,6 +2018,9 @@ function updateHouseworkReview() {
     }
 }
 
+/**
+ * 更新财务复盘数据
+ */
 function updateFinanceReview() {
     const financeData = JSON.parse(localStorage.getItem(STORAGE_KEYS.FINANCE) || '{}');
     const today = new Date();
@@ -2430,6 +2079,7 @@ function updateFinanceReview() {
 
     const categoryList = document.getElementById('expenseCategories');
     categoryList.innerHTML = '';
+    
     if (Object.keys(categoryStats).length > 0) {
         Object.keys(categoryStats).forEach(category => {
             const stats = categoryStats[category];
@@ -2454,6 +2104,9 @@ function updateFinanceReview() {
     }
 }
 
+/**
+ * 更新娱乐复盘数据
+ */
 function updateEntertainmentReview() {
     const entertainmentData = JSON.parse(localStorage.getItem(STORAGE_KEYS.ENTERTAINMENT) || '{}');
     const gameData = JSON.parse(localStorage.getItem(STORAGE_KEYS.GAME) || '{}');
@@ -2482,6 +2135,7 @@ function updateEntertainmentReview() {
 
     const entertainmentList = document.getElementById('entertainmentStats');
     entertainmentList.innerHTML = '';
+    
     if (Object.keys(entertainmentStats).length > 0) {
         Object.keys(entertainmentStats).forEach(type => {
             const li = document.createElement('li');
@@ -2495,4 +2149,719 @@ function updateEntertainmentReview() {
     }
 }
 
-// 文件结束
+// ==================== 今日概览功能 ====================
+
+/**
+ * 从临时数据更新概览
+ */
+function updateOverviewFromTemp() {
+    const dateStr = formatDate(new Date());
+    
+    // 家务积分
+    const houseworkData = JSON.parse(localStorage.getItem(STORAGE_KEYS.HOUSEWORK + '_TEMP') || '{}');
+    let houseworkScore = 0;
+    if (houseworkData[dateStr] && houseworkData[dateStr].length > 0) {
+        const latestHousework = houseworkData[dateStr][houseworkData[dateStr].length - 1];
+        houseworkScore = latestHousework.score || 0;
+    }
+    const houseworkOverviewEl = document.getElementById('houseworkOverview');
+    if (houseworkOverviewEl) {
+        houseworkOverviewEl.textContent = `${houseworkScore}分`;
+    }
+
+    // 学习时长
+    const studyData = JSON.parse(localStorage.getItem(STORAGE_KEYS.STUDY + '_TEMP') || '{}');
+    let totalStudyTime = 0;
+    if (studyData[dateStr]) {
+        studyData[dateStr].forEach(record => {
+            totalStudyTime += record.duration || 0;
+        });
+    }
+    const studyOverviewEl = document.getElementById('studyOverview');
+    if (studyOverviewEl) {
+        studyOverviewEl.textContent = `${totalStudyTime}分钟`;
+    }
+
+    // 运动时长
+    const exerciseData = JSON.parse(localStorage.getItem(STORAGE_KEYS.EXERCISE + '_TEMP') || '{}');
+    let totalExerciseTime = 0;
+    if (exerciseData[dateStr]) {
+        exerciseData[dateStr].forEach(record => {
+            totalExerciseTime += record.duration || 0;
+        });
+    }
+    const exerciseOverviewEl = document.getElementById('exerciseOverview');
+    if (exerciseOverviewEl) {
+        exerciseOverviewEl.textContent = `${totalExerciseTime}分钟`;
+    }
+
+    // 今日支出
+    const financeData = JSON.parse(localStorage.getItem(STORAGE_KEYS.FINANCE + '_TEMP') || '{}');
+    let todayExpense = 0;
+    
+    if (financeData[dateStr]) {
+        const data = financeData[dateStr];
+        if (data.expenses && Array.isArray(data.expenses)) {
+            data.expenses.forEach(record => {
+                todayExpense += record.amount || 0;
+            });
+        }
+    }
+    
+    const expenseOverviewEl = document.getElementById('expenseOverview');
+    if (expenseOverviewEl) {
+        expenseOverviewEl.textContent = `${todayExpense.toFixed(2)}元`;
+    }
+}
+
+// ==================== 导航功能 ====================
+
+/**
+ * 初始化导航
+ */
+function initNavigation() {
+    // 底部导航
+    const bottomNavItems = document.querySelectorAll('.bottom-nav-item');
+    bottomNavItems.forEach(item => {
+        item.addEventListener('click', function() {
+            const section = this.dataset.section;
+            if (section) {
+                switchSection(section);
+                bottomNavItems.forEach(i => i.classList.remove('active'));
+                this.classList.add('active');
+            } else if (this.id === 'bottomReviewToggle') {
+                document.getElementById('reviewPanel').classList.add('active');
+            }
+        });
+    });
+}
+
+/**
+ * 切换显示区域
+ */
+function switchSection(section) {
+    // 隐藏所有区域
+    const allSections = document.querySelectorAll('.section');
+    allSections.forEach(sec => {
+        sec.classList.remove('active');
+    });
+    
+    // 显示目标区域
+    const targetSection = document.getElementById(`${section}-block`) || document.getElementById(section);
+    if (targetSection) {
+        targetSection.classList.add('active');
+    }
+    
+    // 如果是日历，重新渲染
+    if (section === 'calendar') {
+        renderCalendar();
+    }
+}
+
+/**
+ * 初始化导航侧边栏
+ */
+function initNavSidebar() {
+    const navToggle = document.getElementById('navToggle');
+    const navSidebar = document.getElementById('navSidebar');
+    const closeNav = document.getElementById('closeNav');
+    const body = document.body;
+    
+    // 打开侧边栏
+    navToggle.addEventListener('click', function() {
+        navSidebar.classList.add('active');
+        body.classList.add('nav-expanded');
+    });
+    
+    // 关闭侧边栏
+    closeNav.addEventListener('click', function() {
+        navSidebar.classList.remove('active');
+        body.classList.remove('nav-expanded');
+    });
+    
+    // 侧边栏菜单项点击
+    const navMenuItems = document.querySelectorAll('.nav-menu-main');
+    navMenuItems.forEach(item => {
+        item.addEventListener('click', function() {
+            const targetId = this.dataset.target;
+            const section = this.dataset.section;
+            
+            if (targetId) {
+                // 导航到具体块
+                navigateToBlock(targetId);
+                navSidebar.classList.remove('active');
+                body.classList.remove('nav-expanded');
+            } else if (section) {
+                // 切换到对应区域
+                switchSection(section);
+                navSidebar.classList.remove('active');
+                body.classList.remove('nav-expanded');
+            }
+        });
+    });
+}
+
+/**
+ * 导航到具体块
+ */
+function navigateToBlock(blockId) {
+    const targetElement = document.getElementById(blockId);
+    if (targetElement) {
+        // 确保显示正确的区域
+        if (blockId.includes('block')) {
+            const blockName = blockId.replace('-block', '');
+            switchSection('时间轴记录');
+            
+            // 展开对应的块
+            const content = document.getElementById(blockName + '-content');
+            if (content && !content.classList.contains('expanded')) {
+                toggleBlock(blockName);
+            }
+        }
+        
+        // 滚动到目标位置
+        setTimeout(() => {
+            targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            
+            // 添加视觉反馈
+            targetElement.style.boxShadow = '0 0 0 3px rgba(255, 183, 197, 0.3)';
+            targetElement.style.transition = 'box-shadow 0.5s ease';
+            
+            setTimeout(() => {
+                targetElement.style.boxShadow = '';
+            }, 1500);
+        }, 100);
+    }
+}
+
+/**
+ * 初始化概览面板
+ */
+function initOverviewPanel() {
+    const overviewToggle = document.getElementById('overviewToggle');
+    const overviewPanel = document.getElementById('overviewPanel');
+    
+    overviewToggle.addEventListener('click', function() {
+        overviewPanel.classList.toggle('collapsed');
+        overviewPanel.classList.toggle('expanded');
+    });
+}
+
+/**
+ * 初始化游戏类型切换
+ */
+function initGameTypeToggle() {
+    const gameTypeSelect = document.getElementById('gameType');
+    if (gameTypeSelect) {
+        gameTypeSelect.addEventListener('change', function() {
+            const gameType = this.value;
+            document.getElementById('generalGame').style.display = gameType === '通用游戏' ? 'block' : 'none';
+            document.getElementById('animalCrossing').style.display = gameType === '动物森友会' ? 'block' : 'none';
+        });
+    }
+}
+
+// ==================== 按钮事件初始化 ====================
+
+/**
+ * 初始化按钮事件
+ */
+function initButtonEvents() {
+    // 复盘面板开关
+    document.getElementById('reviewToggle')?.addEventListener('click', () => {
+        document.getElementById('reviewPanel').classList.add('active');
+    });
+    
+    document.getElementById('bottomReviewToggle')?.addEventListener('click', () => {
+        document.getElementById('reviewPanel').classList.add('active');
+    });
+    
+    document.getElementById('closeReview')?.addEventListener('click', () => {
+        document.getElementById('reviewPanel').classList.remove('active');
+    });
+    
+    // 日历导航
+    document.getElementById('prevMonth')?.addEventListener('click', () => {
+        currentMonth--;
+        if (currentMonth < 0) {
+            currentMonth = 11;
+            currentYear--;
+        }
+        renderCalendar();
+    });
+    
+    document.getElementById('nextMonth')?.addEventListener('click', () => {
+        currentMonth++;
+        if (currentMonth > 11) {
+            currentMonth = 0;
+            currentYear++;
+        }
+        renderCalendar();
+    });
+    
+    // 重要日期表单
+    document.getElementById('toggleAddImportantForm')?.addEventListener('click', function() {
+        const form = document.getElementById('addImportantForm');
+        if (form.style.display === 'none') {
+            form.style.display = 'block';
+            this.innerHTML = '<i class="fas fa-minus"></i> 取消添加';
+        } else {
+            form.style.display = 'none';
+            this.innerHTML = '<i class="fas fa-plus"></i> 添加重要日期';
+        }
+    });
+    
+    document.getElementById('cancelAddImportantForm')?.addEventListener('click', function() {
+        document.getElementById('addImportantForm').style.display = 'none';
+        document.getElementById('toggleAddImportantForm').innerHTML = '<i class="fas fa-plus"></i> 添加重要日期';
+    });
+}
+
+// ==================== 辅助函数 ====================
+
+/**
+ * 获取记录类型名称
+ */
+function getRecordTypeName(key) {
+    const names = {
+        'sleepData': '睡眠记录',
+        'breakfastData': '早餐记录',
+        'workData': '工作记录',
+        'houseworkData': '家务记录',
+        'studyData': '学习记录',
+        'lunchData': '午餐记录',
+        'napData': '午休记录',
+        'exerciseData': '运动记录',
+        'dinnerData': '晚餐记录',
+        'gameData': '游戏记录',
+        'entertainmentData': '娱乐记录',
+        'financeData': '财务记录',
+        'supplementData': '补剂打卡',
+        'bodycareData': '护理打卡'
+    };
+    return names[key] || key;
+}
+
+/**
+ * 显示通知
+ */
+function showNotification(message) {
+    const notification = document.getElementById('notification');
+    const notificationText = document.getElementById('notificationText');
+    
+    if (notification && notificationText) {
+        notificationText.textContent = message;
+        notification.style.display = 'flex';
+        
+        setTimeout(() => {
+            notification.style.display = 'none';
+        }, 3000);
+    }
+}
+
+/**
+ * 加载今日数据
+ */
+function loadTodayData() {
+    // 加载今日的临时数据到表单
+    console.log('📊 加载今日数据...');
+}
+
+// ==================== GitHub同步功能 ====================
+
+/**
+ * 打开GitHub同步面板
+ */
+function openGitHubSyncPanel() {
+    const panel = document.getElementById('githubSyncPanel');
+    const overlay = document.getElementById('syncOverlay');
+    
+    if (panel && overlay) {
+        panel.style.display = 'block';
+        overlay.style.display = 'block';
+        githubSyncManager.updateUI();
+    }
+}
+
+/**
+ * 关闭GitHub同步面板
+ */
+function closeGitHubSyncPanel() {
+    const panel = document.getElementById('githubSyncPanel');
+    const overlay = document.getElementById('syncOverlay');
+    
+    if (panel && overlay) {
+        panel.style.display = 'none';
+        overlay.style.display = 'none';
+        hideSyncStatus();
+    }
+}
+
+/**
+ * 打开PAT配置模态框
+ */
+function openPATModal() {
+    const form = document.getElementById('patConfigForm');
+    if (form) {
+        form.style.display = 'block';
+    }
+}
+
+/**
+ * 关闭PAT配置模态框
+ */
+function closePATModal() {
+    const form = document.getElementById('patConfigForm');
+    if (form) {
+        form.style.display = 'none';
+    }
+}
+
+/**
+ * 使用PAT连接GitHub
+ */
+async function connectWithPAT() {
+    const pat = document.getElementById('githubPAT')?.value.trim();
+    const description = document.getElementById('gistDescription')?.value.trim() || 'island sync data';
+
+    if (!pat) {
+        showNotification('请输入 GitHub Personal Access Token');
+        return;
+    }
+
+    if (!pat.startsWith('ghp_') && !pat.startsWith('github_pat_')) {
+        if (!confirm('这个看起来不像有效的 PAT。请确认您输入的是正确的 Personal Access Token。\n\n是否继续？')) {
+            return;
+        }
+    }
+
+    showSyncStatus('正在验证 PAT...');
+
+    try {
+        githubSyncManager.accessToken = pat;
+
+        const userData = await githubSyncManager.testConnection();
+
+        showSyncStatus('正在设置 Gist...');
+        updateProgress(30);
+
+        await githubSyncManager.findOrCreateGist(description);
+
+        updateProgress(80);
+        showSyncStatus('正在保存配置...');
+
+        githubSyncManager.saveConfig();
+
+        updateProgress(100);
+        showSyncStatus('连接成功！', 'success');
+
+        setTimeout(() => {
+            hideSyncStatus();
+            githubSyncManager.updateUI();
+            closePATModal();
+            
+            const patInput = document.getElementById('githubPAT');
+            const descInput = document.getElementById('gistDescription');
+            if (patInput) patInput.value = '';
+            if (descInput) descInput.value = '';
+        }, 1500);
+
+    } catch (error) {
+        showSyncStatus(`连接失败: ${error.message}`, 'error');
+        githubSyncManager.clearConfig();
+    }
+}
+
+/**
+ * 手动同步配置
+ */
+function manualSyncConfig() {
+    document.getElementById('syncConnected').style.display = 'none';
+    document.getElementById('syncManualConfig').style.display = 'block';
+
+    const usernameInput = document.getElementById('manualUsername');
+    const gistIdInput = document.getElementById('manualGistId');
+    
+    if (usernameInput) usernameInput.value = githubSyncManager.username || '';
+    if (gistIdInput) gistIdInput.value = githubSyncManager.gistId || '';
+}
+
+/**
+ * 显示已连接视图
+ */
+function showConnectedView() {
+    document.getElementById('syncManualConfig').style.display = 'none';
+    document.getElementById('syncConnected').style.display = 'block';
+}
+
+/**
+ * 保存手动配置
+ */
+function saveManualConfig() {
+    const username = document.getElementById('manualUsername')?.value.trim();
+    const gistId = document.getElementById('manualGistId')?.value.trim();
+
+    if (!username) {
+        showNotification('请输入 GitHub 用户名');
+        return;
+    }
+
+    githubSyncManager.username = username;
+    if (gistId) githubSyncManager.gistId = gistId;
+
+    githubSyncManager.saveConfig();
+    githubSyncManager.updateUI();
+    showNotification('⚙️ 手动配置已保存');
+}
+
+/**
+ * 同步到GitHub
+ */
+async function syncToGitHub(action) {
+    if (!githubSyncManager.isConnected()) {
+        showNotification('请先连接 GitHub 账号');
+        return;
+    }
+
+    showSyncStatus(action === 'upload' ? '正在准备上传数据...' : '正在下载数据...');
+
+    try {
+        if (action === 'upload') {
+            await uploadData();
+        } else {
+            await downloadData();
+        }
+    } catch (error) {
+        showSyncStatus(`${action === 'upload' ? '上传' : '下载'}失败: ${error.message}`, 'error');
+    }
+}
+
+/**
+ * 上传数据到GitHub
+ */
+async function uploadData() {
+    updateProgress(20);
+    showSyncStatus('正在收集数据...');
+
+    const allData = {};
+    const storageKeys = Object.keys(localStorage);
+
+    storageKeys.forEach(key => {
+        if (!key.includes('github_') && !key.includes('_temp')) {
+            try {
+                const value = localStorage.getItem(key);
+                if (value) {
+                    allData[key] = JSON.parse(value);
+                }
+            } catch (e) {
+                console.warn(`无法解析 ${key}:`, e);
+            }
+        }
+    });
+
+    updateProgress(40);
+    showSyncStatus('正在加密数据...');
+
+    const encryptedData = btoa(JSON.stringify(allData));
+
+    updateProgress(60);
+    showSyncStatus('正在上传到 GitHub...');
+
+    const response = await fetch(`https://api.github.com/gists/${githubSyncManager.gistId}`, {
+        method: 'PATCH',
+        headers: {
+            'Authorization': `token ${githubSyncManager.accessToken}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            description: `island sync data - ${new Date().toLocaleString('zh-CN')}`,
+            files: {
+                'island-data.json': {
+                    content: encryptedData
+                }
+            }
+        })
+    });
+
+    if (!response.ok) {
+        throw new Error(`上传失败: ${response.status}`);
+    }
+
+    updateProgress(100);
+    githubSyncManager.lastSync = new Date().toISOString();
+    githubSyncManager.saveConfig();
+
+    showSyncStatus('上传成功！', 'success');
+    showNotification('☁️ 数据已备份到 GitHub！');
+
+    setTimeout(() => {
+        hideSyncStatus();
+        githubSyncManager.updateUI();
+    }, 1500);
+}
+
+/**
+ * 从GitHub下载数据
+ */
+async function downloadData() {
+    if (!confirm('从 GitHub 下载数据将覆盖本地数据，是否继续？')) {
+        return;
+    }
+
+    updateProgress(20);
+    showSyncStatus('正在从 GitHub 获取数据...');
+
+    const response = await fetch(`https://api.github.com/gists/${githubSyncManager.gistId}`, {
+        headers: {
+            'Authorization': `token ${githubSyncManager.accessToken}`,
+            'Accept': 'application/vnd.github.v3+json'
+        }
+    });
+
+    if (!response.ok) {
+        throw new Error(`下载失败: ${response.status}`);
+    }
+
+    const gistData = await response.json();
+    const encryptedContent = gistData.files['island-data.json'].content;
+
+    updateProgress(60);
+    showSyncStatus('正在解密数据...');
+
+    try {
+        const decryptedData = JSON.parse(atob(encryptedContent));
+
+        updateProgress(80);
+        showSyncStatus('正在写入本地存储...');
+
+        Object.keys(decryptedData).forEach(key => {
+            localStorage.setItem(key, JSON.stringify(decryptedData[key]));
+        });
+
+        updateProgress(100);
+        githubSyncManager.lastSync = new Date().toISOString();
+        githubSyncManager.saveConfig();
+
+        showSyncStatus('下载成功！', 'success');
+        showNotification('☁️ 已从 GitHub 恢复数据！');
+
+        setTimeout(() => {
+            hideSyncStatus();
+            githubSyncManager.updateUI();
+            
+            // 重新加载数据
+            loadTodayData();
+            loadWorkData();
+            loadFinanceData();
+            loadImportantDates();
+            updateReviewData();
+            renderCalendar();
+            updateOverviewFromTemp();
+            
+            showNotification('🔄 页面数据已刷新！');
+        }, 1500);
+
+    } catch (error) {
+        throw new Error('数据解密失败');
+    }
+}
+
+/**
+ * 断开GitHub连接
+ */
+function disconnectGitHub() {
+    if (confirm('确定要断开 GitHub 连接吗？\n这将清除所有同步配置。')) {
+        githubSyncManager.clearConfig();
+        githubSyncManager.updateUI();
+        showNotification('🔌 已断开 GitHub 连接');
+    }
+}
+
+/**
+ * 显示同步状态
+ */
+function showSyncStatus(message, type = 'loading') {
+    const statusEl = document.getElementById('syncStatus');
+    const statusText = document.getElementById('statusText');
+
+    if (!statusEl || !statusText) return;
+
+    statusEl.style.display = 'block';
+    statusText.textContent = message;
+
+    const spinner = statusEl.querySelector('.spinner');
+    if (type === 'success') {
+        statusText.style.color = '#4CAF50';
+        if (spinner) spinner.style.display = 'none';
+    } else if (type === 'error') {
+        statusText.style.color = '#F44336';
+        if (spinner) spinner.style.display = 'none';
+    } else {
+        statusText.style.color = '#24292e';
+        if (spinner) spinner.style.display = 'block';
+    }
+}
+
+/**
+ * 隐藏同步状态
+ */
+function hideSyncStatus() {
+    const statusEl = document.getElementById('syncStatus');
+    if (statusEl) {
+        statusEl.style.display = 'none';
+    }
+    updateProgress(0);
+}
+
+/**
+ * 更新进度条
+ */
+function updateProgress(percent) {
+    const progressFill = document.querySelector('.progress-fill');
+    const progressText = document.getElementById('progressText');
+
+    if (progressFill) {
+        progressFill.style.width = percent + '%';
+    }
+    if (progressText) {
+        progressText.textContent = percent + '%';
+    }
+}
+
+// ==================== 全局导出 ====================
+// 确保函数在全局作用域中可用
+window.toggleBlock = toggleBlock;
+window.saveSleep = saveSleep;
+window.saveBreakfast = saveBreakfast;
+window.saveWork = saveWork;
+window.saveHousework = saveHousework;
+window.saveStudy = saveStudy;
+window.saveLunch = saveLunch;
+window.saveNap = saveNap;
+window.saveExercise = saveExercise;
+window.saveDinner = saveDinner;
+window.saveGame = saveGame;
+window.saveEntertainment = saveEntertainment;
+window.saveFinance = saveFinance;
+window.saveSupplements = saveSupplements;
+window.saveBodyCare = saveBodyCare;
+window.addTodoItem = addTodoItem;
+window.addDoneItem = addDoneItem;
+window.addFinanceItem = addFinanceItem;
+window.deleteFinanceItem = deleteFinanceItem;
+window.goToToday = goToToday;
+window.addImportantDate = addImportantDate;
+window.deleteImportantDate = deleteImportantDate;
+window.openGitHubSyncPanel = openGitHubSyncPanel;
+window.closeGitHubSyncPanel = closeGitHubSyncPanel;
+window.openPATModal = openPATModal;
+window.closePATModal = closePATModal;
+window.connectWithPAT = connectWithPAT;
+window.manualSyncConfig = manualSyncConfig;
+window.showConnectedView = showConnectedView;
+window.saveManualConfig = saveManualConfig;
+window.syncToGitHub = syncToGitHub;
+window.disconnectGitHub = disconnectGitHub;
+
+console.log('🚀 小航小刀小岛 - 应用逻辑加载完成');
